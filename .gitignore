@@ -1,0 +1,47 @@
+*.pyc
+*.o
+*.so
+refactor.ipynb
+
+# sparse-export stuff
+.gitu
+.sparse-export
+
+# qt creator
+*.qtc.*
+
+# cmake builds
+.build
+
+# python packaging
+*.egg-info/
+build/bdist.*
+build/lib
+build/lib.*
+build/temp.*
+dist/
+
+# pyces build
+.pyces-out
+
+# jupyter autosaves
+.ipynb_checkpoints
+
+# bazel poop
+bazel-*
+
+# vscode poop
+.vscode/ipch
+
+# node package manager
+node_modules
+
+# bazel sucks...
+WORKSPACE
+
+# node sucks
+vscode_extension/node_modules
+vscode_extension/out
+
+# Temp/backup files
+*~
