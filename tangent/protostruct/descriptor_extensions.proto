@@ -1,0 +1,86 @@
+syntax = "proto2";
+
+import "google/protobuf/descriptor.proto";
+
+package google.protobuf;
+
+message ProtostructFileOptions {
+  extend FileOptions {
+    optional ProtostructFileOptions protostruct_options = 83111;
+  }
+
+  // This is the relative path the the file, as it was passed to the
+  // protostruct command line. This is the what is used in the generated
+  // code to include the c structure definitions.
+  optional string header_filepath = 1;
+}
+
+message ProtostructEnumOptions {
+  extend EnumOptions {
+    optional ProtostructEnumOptions protostruct_options = 83111;
+  }
+
+  // Comment string that was preserved when .proto file was generated from C
+  optional string protostruct_comment = 1;
+}
+
+message ProtostructEnumValueOptions {
+  extend EnumValueOptions {
+    optional ProtostructEnumValueOptions protostruct_options = 83111;
+  }
+
+  // Comment string that was preserved when .proto file was generated from C
+  optional string protostruct_comment = 1;
+}
+
+message ProtostructMessageOptions {
+  extend MessageOptions {
+    optional ProtostructMessageOptions protostruct_options = 83111;
+  }
+
+  // Comment string that was preserved when .proto file was generated from C
+  optional string protostruct_comment = 1;
+}
+
+message ProtostructFieldOptions {
+  extend FieldOptions {
+    optional ProtostructFieldOptions protostruct_options = 83111;
+  }
+
+  enum StructType {
+    UINT8_T = 1;
+    UINT16_T = 2;
+    UINT32_T = 3;
+    UINT64_T = 4;
+    INT8_T = 5;
+    INT16_T = 6;
+    INT32_T = 7;
+    INT64_T = 8;
+    DOUBLE = 9;
+    FLOAT = 10;
+    STRUCT = 11;
+    ARRAY_OF = 12;
+    POINTER_TO = 13;
+  }
+
+  // Comment string that was preserved when .proto file was generated from C
+  optional string protostruct_comment = 1;
+
+  // The type of the corresponding field in the mapped C struct
+  // representation of a message.
+  repeated StructType protostruct_type = 2;
+
+  // If this field is an array in it's C struct representation,
+  // then `length_field` stores the length of that array.
+  optional string length_field = 3;
+
+  // If this field is an array in it's C struct representation,
+  // then this is the size of that array, and represents the maximum number
+  // of elements that it can hold.
+  optional int32 array_size = 4;
+}
+
+
+
+
+

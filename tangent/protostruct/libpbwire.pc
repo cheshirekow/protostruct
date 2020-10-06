@@ -1,0 +1,13 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: libpbwire
+Description: Protobuf wire protocol for C
+Version: @TANGENT_PBWIRE_VERSION@
+
+Requires.private:
+Libs: -L${libdir} -ltangent-pbwire
+Libs.private:
+Cflags: -I${includedir}
