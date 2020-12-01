@@ -1,6 +1,11 @@
 set(SUPPORTED_DISTRIBUTIONS xenial bionic eoan focal)
 set(SUPPORTED_ARCHITECTURES amd64 arm64 i386)
 
+set_property(GLOBAL PROPERTY DEBIAN_SUPPORTED_DISTRIBUTIONS
+                             ${SUPPORTED_DISTRIBUTIONS})
+set_property(GLOBAL PROPERTY DEBIAN_SUPPORTED_ARCHITECTURES
+                             ${SUPPORTED_ARCHITECTURES})
+
 foreach(distro ${SUPPORTED_DISTRIBUTIONS})
   add_custom_target(${distro}-source-packages)
   foreach(arch ${SUPPORTED_ARCHITECTURES})
@@ -315,8 +320,7 @@ function(create_debian_source_package name distro)
   add_dependencies(${distro}-source-packages deb-src-${name}-${distro})
 endfunction()
 
-# Create debian package repository from the specified list of binary
-# packages
+# Create debian package repository from the specified list of binary packages
 #
 # Usage:
 # ~~~
@@ -360,7 +364,6 @@ function(create_debian_depsrepo depsrepo distro arch)
     COMMENT "Creating depsrepo for ${tag}")
 endfunction()
 
-
 # Create debian binary packages from the debian source package for `name`.
 #
 # Usage:
@@ -382,7 +385,6 @@ function(create_debian_binary_packages tag distro arch)
   # and construct a local filesystem debian repository.
   set(depsrepo ${CMAKE_CURRENT_BINARY_DIR}/${distro}/${arch}/${tag}-deps)
   create_debian_depsrepo(${depsrepo} ${distro} ${arch} ${_args_DEPS})
-
 
   get_signing_flags(_signflags)
 

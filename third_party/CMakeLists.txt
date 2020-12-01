@@ -1,3 +1,7 @@
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cereal)
+  add_subdirectory(cereal)
+endif()
+
 # NOTE(josh): don't build gtest if it's not part of this sparse checkout
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/googletest)
   message("Enabling third_party:googletest for this checkout")

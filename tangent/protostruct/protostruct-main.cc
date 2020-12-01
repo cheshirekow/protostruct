@@ -1,7 +1,8 @@
+// Copyright 2020 Josh Bialkowski <josh.bialkowski@gmail.com>
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <python3.6/Python.h>
+#include <Python.h>
 
 #include <fstream>
 #include <iostream>
@@ -22,7 +23,7 @@
 #include "tangent/util/stringutil.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
-  { 0, 1, 0, "dev", 0 }
+  { 0, 1, 1, "dev", 0 }
 
 // NOTE(josh): to self, see:
 // https://developers.google.com/protocol-buffers/docs/reference/cpp#google.protobuf.compiler
@@ -153,7 +154,8 @@ void visit_tree(CXCursor cursor, Args&&... args) {
 
 class EnumVisitor : public ClangVisitor {
  public:
-  EnumVisitor(google::protobuf::EnumDescriptorProto* proto) : proto_{proto} {
+  explicit EnumVisitor(google::protobuf::EnumDescriptorProto* proto)
+      : proto_{proto} {
     proto_->clear_value();
   }
   virtual ~EnumVisitor() {}
@@ -289,12 +291,11 @@ int set_default_unless_already_compatible(
 
   for (auto value : compatible) {
     if (value == proto->type()) {
-      LOG(INFO) << "Type "
+      LOG(INFO) << "Preserving compatible "
                 << google::protobuf::FieldDescriptorProto_Type_Name(
                        proto->type())
-                << " for field " << proto->name()
-                << " is already compatible with "
-                << clang_getTypeSpelling(field_type);
+                << " for `" << proto->name() << "` ("
+                << clang_getTypeSpelling(field_type) << ")";
       return 0;
     }
   }
@@ -305,6 +306,15 @@ int set_default_unless_already_compatible(
 
 int set_field_type(google::protobuf::FieldDescriptorProto* proto,
                    CXType field_type) {
+  auto* my_options = proto->mutable_options()->MutableExtension(
+      google::protobuf::ProtostructFieldOptions::protostruct_options);
+  if (!my_options->has_protostruct_type()) {
+    CXString cxstr = clang_getTypeSpelling(field_type);
+    const char* cstr = clang_getCString(cxstr);
+    my_options->set_protostruct_type(cstr);
+    clang_disposeString(cxstr);
+  }
+
   switch (field_type.kind) {
     case CXType_Int:
     case CXType_LongLong:
@@ -404,7 +414,10 @@ std::string normalize_type_name(const std::string& type_name) {
 
 class FieldVisitor : public ClangVisitor {
  public:
-  FieldVisitor(google::protobuf::FieldDescriptorProto* proto) : proto_{proto} {}
+  explicit FieldVisitor(google::protobuf::FieldDescriptorProto* proto)
+      : proto_{proto} {
+    (void)proto_;
+  }
   virtual ~FieldVisitor() {}
 
   CXChildVisitResult visit(CXCursor c, CXCursor parent) override {
@@ -435,7 +448,7 @@ bool fieldname_is_lengthfield(const std::string& fieldname,
 
 class MessageVisitor : public ClangVisitor {
  public:
-  MessageVisitor(google::protobuf::DescriptorProto* proto)
+  explicit MessageVisitor(google::protobuf::DescriptorProto* proto)
       : proto_{proto}, next_number_{1} {
     for (int idx = 0; idx < proto_->reserved_range_size(); idx++) {
       auto range = proto_->reserved_range(idx);
@@ -694,9 +707,20 @@ class FileVisitor : public ClangVisitor {
       return CXChildVisit_Continue;
     }
 
+    std::stringstream strm{};
+    strm << clang_getCursorSpelling(c);
+    std::string cursor_spelling = strm.str();
     CXCursorKind kind = clang_getCursorKind(c);
+
     switch (kind) {
       case CXCursor_EnumDecl: {
+        auto pair = visited_enums_.insert(cursor_spelling);
+        if (!pair.second) {
+          // This is the second time we've hit this decl node. This happens
+          // because typedefed structs get enumerated twice.
+          return CXChildVisit_Continue;
+        }
+
         std::string comment = get_cursor_comment(c);
         if (comment.find("protostruct: skip") != std::string::npos) {
           LOG(INFO) << "Skipping enum " << clang_getCursorSpelling(c);
@@ -723,6 +747,13 @@ class FileVisitor : public ClangVisitor {
       }
 
       case CXCursor_StructDecl: {
+        auto pair = visited_enums_.insert(cursor_spelling);
+        if (!pair.second) {
+          // This is the second time we've hit this decl node. This happens
+          // because typedefed structs get enumerated twice.
+          return CXChildVisit_Continue;
+        }
+
         std::string comment = get_cursor_comment(c);
         if (comment.find("protostruct: skip") != std::string::npos) {
           LOG(INFO) << "Skipping struct " << clang_getCursorSpelling(c);
@@ -756,6 +787,8 @@ class FileVisitor : public ClangVisitor {
   }
 
  private:
+  std::set<std::string> visited_enums_;
+  std::set<std::string> visited_messages_;
   CXFile file_of_interest_;
   google::protobuf::FileDescriptorProto* file_proto_;
 };
@@ -772,17 +805,24 @@ int compile_main(const ProgramOptions& popts) {
     source_tree.MapPath("", proto_path);
   }
 
-  MyErrorCollector error_collector{};
-  google::protobuf::compiler::Importer importer{&source_tree, &error_collector};
+  std::string proto_filepath = popts.proto_filepath;
+  if (proto_filepath.empty()) {
+    auto name_parts = stringutil::split(popts.source_filepath, '.');
+    name_parts.pop_back();
+    name_parts.push_back("proto");
+    proto_filepath = stringutil::join(name_parts, ".");
+  }
 
-  const google::protobuf::FileDescriptor* proto_file =
-      importer.Import(popts.proto_filepath);
-  if (!proto_file) {
-    LOG(FATAL) << "Failed to import " << popts.proto_filepath;
+  MyErrorCollector error_collector{};
+  google::protobuf::compiler::SourceTreeDescriptorDatabase descr_db{
+      &source_tree};
+  descr_db.RecordErrorsTo(&error_collector);
+
+  google::protobuf::FileDescriptorProto fileproto{};
+  if (!descr_db.FindFileByName(proto_filepath, &fileproto)) {
+    LOG(FATAL) << "Failed to import " << proto_filepath;
     exit(1);
   }
-  google::protobuf::FileDescriptorProto fileproto{};
-  proto_file->CopyTo(&fileproto);
 
   fileproto.mutable_options()
       ->MutableExtension(
@@ -811,6 +851,14 @@ int compile_main(const ProgramOptions& popts) {
     for (const char* arg : clang_argv) {
       std::cerr << " " << arg;
     }
+    std::cerr << "\n";
+
+    for (size_t idx = 0; idx < clang_getNumDiagnostics(tunit); idx++) {
+      CXDiagnostic diag = clang_getDiagnostic(tunit, idx);
+      std::cerr << clang_getDiagnosticSpelling(diag);
+      clang_disposeDiagnostic(diag);
+    }
+
     exit(1);
   }
 
@@ -838,7 +886,7 @@ int compile_main(const ProgramOptions& popts) {
 // NOTE(josh): we don't want to use limits.h because we aren't going to be
 // running this on the system we compile for. Also PATH_MAX is a lie and the
 // underlying filesystem probably supports larger paths.
-const size_t _path_max = 4096;
+constexpr size_t _path_max = 4096;
 
 std::wstring widen(const std::string& narrow_bytes) {
   std::wstring wide_bytes{};
@@ -851,8 +899,8 @@ std::wstring widen(const std::string& narrow_bytes) {
 }
 
 std::wstring get_path_to_executable() {
-  char path_buf[_path_max];
-  ssize_t result = readlink("/proc/self/exe", path_buf, _path_max);
+  std::array<char, _path_max> path_buf;
+  ssize_t result = readlink("/proc/self/exe", &path_buf[0], _path_max);
 
   if (result < 0 || static_cast<size_t>(result) >= _path_max - 1) {
     return std::wstring();
@@ -861,7 +909,7 @@ std::wstring get_path_to_executable() {
   // readlink does not append a terminating null
   path_buf[result] = '\0';
 
-  return widen(path_buf);
+  return widen(&path_buf[0]);
 }
 
 int gen_main(const ProgramOptions& popts) {

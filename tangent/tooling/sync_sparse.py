@@ -45,6 +45,8 @@ def get_primary_repo(worktree):
   if parts[-2] == "worktrees":
     return "/".join(parts[:-2])
 
+  return git_dir
+
 
 def is_worktree(primary_repo, worktree):
   try:

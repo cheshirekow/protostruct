@@ -1,13 +1,15 @@
 import argparse
 import io
 import os
-import sys
 import zipfile
 
-import jinja2
 from google import protobuf
+import jinja2
+import markupsafe
+import six
 
 from tangent import protostruct
+
 
 def get_manifest():
   manifest = []
@@ -16,7 +18,11 @@ def get_manifest():
   manifest.append((io.__file__, "io.py"))
   manifest.append((os.__file__, "os.py"))
 
-  for package in (jinja2, protobuf, protostruct):
+  for package in (jinja2, markupsafe, protobuf, protostruct, six):
+    if not package.__file__.endswith("__init__.py"):
+      manifest.append((package.__file__, package.__file__.split("/")[-1]))
+      continue
+
     directory = "/".join(package.__file__.split("/")[:-1])
     for parent, dirnames, filenames in os.walk(directory):
       reldir = os.path.relpath(parent, directory)
@@ -41,6 +47,7 @@ def get_manifest():
             os.path.join(package.__name__.replace(".", "/"), reldir, filename)))
   return manifest
 
+
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument(
@@ -54,6 +61,7 @@ def main():
   with zipfile.ZipFile(args.outfile, "w") as outfile:
     for srcpath, dstpath in get_manifest():
       outfile.write(srcpath, dstpath)
+    outfile.writestr("google/__init__.py", "")
     outfile.writestr("tangent/__init__.py", "")
     outfile.write(args.main, "__main__.py")
 

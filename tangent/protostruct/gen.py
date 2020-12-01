@@ -70,53 +70,53 @@ def setup_argparse(argparser):
 
 
 def get_proto_typename(typeid):
-  e = descriptor_pb2.FieldDescriptorProto
+  proto = descriptor_pb2.FieldDescriptorProto
   return {
-      e.TYPE_BOOL: "bool",
-      e.TYPE_BYTES: "bytes",
-      e.TYPE_DOUBLE: "double",
-      e.TYPE_FIXED32: "fixed32",
-      e.TYPE_FIXED64: "fixed64",
-      e.TYPE_FLOAT: "float",
-      e.TYPE_INT32: "int32",
-      e.TYPE_INT64: "int64",
-      e.TYPE_SFIXED32: "sfixed32",
-      e.TYPE_SFIXED64: "sfixed64",
-      e.TYPE_SINT32: "sint32",
-      e.TYPE_SINT64: "sint64",
-      e.TYPE_STRING: "string",
-      e.TYPE_UINT32: "uint32",
-      e.TYPE_UINT64: "uint64",
+      proto.TYPE_BOOL: "bool",
+      proto.TYPE_BYTES: "bytes",
+      proto.TYPE_DOUBLE: "double",
+      proto.TYPE_FIXED32: "fixed32",
+      proto.TYPE_FIXED64: "fixed64",
+      proto.TYPE_FLOAT: "float",
+      proto.TYPE_INT32: "int32",
+      proto.TYPE_INT64: "int64",
+      proto.TYPE_SFIXED32: "sfixed32",
+      proto.TYPE_SFIXED64: "sfixed64",
+      proto.TYPE_SINT32: "sint32",
+      proto.TYPE_SINT64: "sint64",
+      proto.TYPE_STRING: "string",
+      proto.TYPE_UINT32: "uint32",
+      proto.TYPE_UINT64: "uint64",
   }[typeid]
 
 
 def get_wiretype(typeid):
-  e = descriptor_pb2.FieldDescriptorProto
+  proto = descriptor_pb2.FieldDescriptorProto
   return {
       # Varint
-      e.TYPE_INT32: 0,
-      e.TYPE_INT64: 0,
-      e.TYPE_UINT32: 0,
-      e.TYPE_UINT64: 0,
-      e.TYPE_SINT32: 0,
-      e.TYPE_SINT64: 0,
-      e.TYPE_BOOL: 0,
-      e.TYPE_ENUM: 0,
+      proto.TYPE_INT32: 0,
+      proto.TYPE_INT64: 0,
+      proto.TYPE_UINT32: 0,
+      proto.TYPE_UINT64: 0,
+      proto.TYPE_SINT32: 0,
+      proto.TYPE_SINT64: 0,
+      proto.TYPE_BOOL: 0,
+      proto.TYPE_ENUM: 0,
 
       # 64bit
-      e.TYPE_FIXED64: 1,
-      e.TYPE_SFIXED64: 1,
-      e.TYPE_DOUBLE: 1,
+      proto.TYPE_FIXED64: 1,
+      proto.TYPE_SFIXED64: 1,
+      proto.TYPE_DOUBLE: 1,
 
       # Length-delmited
-      e.TYPE_BYTES: 2,
-      e.TYPE_STRING: 2,
-      e.TYPE_MESSAGE: 2,
+      proto.TYPE_BYTES: 2,
+      proto.TYPE_STRING: 2,
+      proto.TYPE_MESSAGE: 2,
 
       # 32-bit
-      e.TYPE_FIXED32: 5,
-      e.TYPE_FLOAT: 5,
-      e.TYPE_SFIXED32: 5,
+      proto.TYPE_FIXED32: 5,
+      proto.TYPE_FLOAT: 5,
+      proto.TYPE_SFIXED32: 5,
   }[typeid]
 
 
@@ -140,6 +140,7 @@ def get_enum_columns(enums):
 
 
 def get_protostruct_options(descr):
+  # pylint: disable=too-many-return-statements
   if not descr.HasField("options"):
     return None
 
@@ -153,7 +154,7 @@ def get_protostruct_options(descr):
         descriptor_extensions_pb2
         .ProtostructMessageOptions
         .protostruct_options]
-  elif isinstance(descr, descriptor_pb2.FieldDescriptorProto):
+  if isinstance(descr, descriptor_pb2.FieldDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
         .ProtostructFieldOptions
@@ -163,7 +164,7 @@ def get_protostruct_options(descr):
         descriptor_extensions_pb2
         .ProtostructFieldOptions
         .protostruct_options]
-  elif isinstance(descr, descriptor_pb2.EnumDescriptorProto):
+  if isinstance(descr, descriptor_pb2.EnumDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
         .ProtostructEnumOptions
@@ -173,7 +174,7 @@ def get_protostruct_options(descr):
         descriptor_extensions_pb2
         .ProtostructEnumOptions
         .protostruct_options]
-  elif isinstance(descr, descriptor_pb2.EnumValueDescriptorProto):
+  if isinstance(descr, descriptor_pb2.EnumValueDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
         .ProtostructEnumValueOptions
@@ -183,7 +184,7 @@ def get_protostruct_options(descr):
         descriptor_extensions_pb2
         .ProtostructEnumValueOptions
         .protostruct_options]
-  elif isinstance(descr, descriptor_pb2.FileDescriptorProto):
+  if isinstance(descr, descriptor_pb2.FileDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
         .ProtostructFileOptions
@@ -281,11 +282,11 @@ def has_message_field(descr):
 
 
 def get_labelstr(labelid):
-  e = descriptor_pb2.FieldDescriptorProto
+  proto = descriptor_pb2.FieldDescriptorProto
   return {
-      e.LABEL_REPEATED: "repeated",
-      e.LABEL_OPTIONAL: "",
-      e.LABEL_REQUIRED: ""
+      proto.LABEL_REPEATED: "repeated",
+      proto.LABEL_OPTIONAL: "",
+      proto.LABEL_REQUIRED: ""
   }[labelid]
 
 
@@ -316,10 +317,11 @@ def get_options(fielddescr):
 def is_primitive(fielddescr):
   if fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_ENUM:
     return True
-  elif fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE:
+
+  if fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE:
     return False
-  else:
-    return True
+
+  return True
 
 
 def is_message(fielddescr):
@@ -353,19 +355,20 @@ class TemplateContext(object):
   def get_typename(self, fielddescr):
     if fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_ENUM:
       return self.canonicalize_typename(fielddescr.type_name)
-    elif fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE:
-      return self.canonicalize_typename(fielddescr.type_name)
-    else:
-      return get_proto_typename(fielddescr.type)
 
-  def get_emit_fun(self, fielddescr):
+    if fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE:
+      return self.canonicalize_typename(fielddescr.type_name)
+
+    return get_proto_typename(fielddescr.type)
+
+  def get_emit_fun(self, fielddescr, passno=None):
     """Return the name of the emit function for a single value of the given
        type."""
 
     if is_primitive(fielddescr):
       return "pbemit_" + self.get_typename(fielddescr)
 
-    return "_pbemit_" + self.get_typename(fielddescr)
+    return "_pbemit{}_".format(passno) + self.get_typename(fielddescr)
 
   def tuplize_fielddescr(self, fielddescr):
     return (
@@ -399,8 +402,9 @@ class TemplateContext(object):
     format_parts.append("{}")
     format_parts.append(";")
 
+    # comments
     if lengths[5]:
-      format_parts.append(" {}")
+      format_parts.append("  {}")
     else:
       format_parts.append("{}")
 
@@ -438,6 +442,7 @@ def main():
       os.path.dirname(protostruct.__file__))
   if zipfile_path:
     jenv = jinja2.Environment(
+        trim_blocks=True, lstrip_blocks=True,
         loader=ZipfileLoader(zipfile_path,
                              package_path + '/templates'))
   else:
@@ -477,7 +482,9 @@ def main():
   basename = gensource.split("/")[-1].split(".")[0]
 
   process_pairs = []
-  for suffix in [".proto", ".pbwire.h", ".pbwire.c", ".pb2c.h", ".pb2c.cc"]:
+  for suffix in [
+      ".proto", ".cereal.h", ".pbwire.h", ".pbwire.c", ".pb2c.h", ".pb2c.cc"
+    ]:
     outfile_name = basename + suffix
     if suffix.endswith(".proto"):
       outfile_dir = os.path.join(args.proto_out, relpath_outdir)

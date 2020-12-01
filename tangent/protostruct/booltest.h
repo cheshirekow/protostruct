@@ -1,3 +1,6 @@
+#pragma once
+// Copyright 2020 Josh Bialkowski <josh.bialkowski@gmail.com>
+
 #include <cstdint.h>
 #include <stdbool.h>
 

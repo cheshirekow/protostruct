@@ -1,3 +1,4 @@
+// Copyright 2020 Josh Bialkowski <josh.bialkowski@gmail.com>
 #include <gtest/gtest.h>
 
 #include "tangent/protostruct/pbwire.h"
@@ -47,14 +48,14 @@ TEST(pbwireTest, TestParseVarint) {
 
   memset(data, 0, sizeof(data));
   strncpy(data, "\x01", sizeof(data));
-  result = pbwire_parse_varint32(pctx, &value);
+  result = pbwire_parse_varint32(&pctx, &value);
   ASSERT_LE(0, result) << error.msg;
   ASSERT_EQ(1, result);
   ASSERT_EQ(1, value);
 
   memset(data, 0, sizeof(data));
   strncpy(data, "\xac\x02", sizeof(data));
-  result = pbwire_parse_varint32(pctx, &value);
+  result = pbwire_parse_varint32(&pctx, &value);
   ASSERT_LE(0, result) << error.msg;
   ASSERT_EQ(2, result);
   ASSERT_EQ(300, value);
@@ -73,13 +74,13 @@ TEST(pbwireTest, TestEmitVarint) {
   int result{0};
 
   memset(data, 0, sizeof(data));
-  result = pbwire_emit_varint32(ectx, 1);
+  result = pbwire_emit_varint32(&ectx, 1);
   ASSERT_LE(0, result) << error.msg;
   ASSERT_EQ(1, result);
   ASSERT_EQ('\x01', data[0]);
 
   memset(data, 0, sizeof(data));
-  result = pbwire_emit_varint32(ectx, 300);
+  result = pbwire_emit_varint32(&ectx, 300);
   ASSERT_LE(0, result) << error.msg;
   ASSERT_EQ(2, result);
   ASSERT_EQ('\xac', data[0]);

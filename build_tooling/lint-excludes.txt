@@ -30,6 +30,16 @@ gtangentmm/gencache/.*
 pynix/clone_constants.h
 pynix/prctl_constants.h
 tangent/json/test/test_types.*
+# conforms to cereal conventions, which don't satisfy cpplint
+tangent/protostruct/cereal_utils.h
+tangent/protostruct/descriptor_extensions_pb2.py
+tangent/protostruct/test/test_messages.cereal.h
+tangent/protostruct/test/test_messages.pb.h
+tangent/protostruct/test/test_messages.pb.cc
+tangent/protostruct/test/test_messages.pbwire.h
+tangent/protostruct/test/test_messages.pbwire.c
+tangent/protostruct/test/test_messages.pb2c.h
+tangent/protostruct/test/test_messages.pb2c.cc
 
 # TODO(josh): fix errors and remove these from the whitelist
 argue/bash_completion.d/argue-argcomplete

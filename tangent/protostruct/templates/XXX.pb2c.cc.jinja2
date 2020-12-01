@@ -56,7 +56,6 @@ void pb2c(const {{fqn_typename_cpp(descr)}}& proto, {{descr.name}}* cobj){
 {% endfor %}
 }
 
-
 void c2pb(const {{descr.name}}& cobj, {{fqn_typename_cpp(descr)}}* proto){
 {% for fielddescr in descr.field %}
   {% set cfield = fielddescr.name %}
@@ -82,6 +81,7 @@ void c2pb(const {{descr.name}}& cobj, {{fqn_typename_cpp(descr)}}* proto){
   {% endif %}
 {% endfor %}
 }
+
 {% endfor %}
 
 

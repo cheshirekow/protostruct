@@ -83,6 +83,7 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip
   DEPENDS gen.py
           make_pyzip.py
+          templates/XXX.cereal.h.jinja2
           templates/XXX.pbwire.c.jinja2
           templates/XXX.pbwire.h.jinja2
           templates/XXX.pb2c.cc.jinja2
@@ -254,36 +255,38 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pbwire-config.cmake"
 
 # compile .h/.proto -> .pb3
 add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
   DEPENDS ${_protostruct} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.h
           ${CMAKE_CURRENT_SOURCE_DIR}/test/test_in.proto
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/messages.pb3
   COMMAND
     ${_protostruct} tangent/protostruct/test/test_messages.h #
     --step compile #
     --proto-path ${CMAKE_CURRENT_SOURCE_DIR}/test #
     --proto-in test_in.proto #
-    --outfile ${CMAKE_CURRENT_BINARY_DIR}/messages.pb3 #
+    --outfile ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3 #
     -- -I ${CMAKE_SOURCE_DIR}
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # generate code from .pb3
 add_custom_command(
-  DEPENDS ${_protostruct} ${CMAKE_CURRENT_BINARY_DIR}/messages.pb3
-          ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
   OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
+         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.cc
+  DEPENDS ${_protostruct} ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
+          ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
   COMMAND
     # cmake-format: off
     ${_protostruct} --step gen #
-    --outfile ${CMAKE_CURRENT_BINARY_DIR}/messages.pb3 #
+    --outfile ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3 #
     --proto-out ${CMAKE_SOURCE_DIR} #
     --cpp-out ${CMAKE_SOURCE_DIR}
     # cmake-format: on
   COMMAND
     clang-format-8 -i -style=File
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
@@ -292,31 +295,28 @@ add_custom_command(
 
 # generate C/C++ bindings from .proto
 add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.h
+         ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.cc
   DEPENDS test/test_messages.proto
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb.h
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb.cc
   COMMAND
     protoc --proto_path=${CMAKE_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
-    --cpp_out=${CMAKE_SOURCE_DIR}
-  COMMAND
-    clang-format-8 -i -style=File
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb.cc)
+    --cpp_out=${CMAKE_BINARY_DIR})
 
 cc_library(
   test-messages
-  SRCS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
-       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb.h
-       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb.cc
+  SRCS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
+       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
+       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
+       ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.h
+       ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.cc
        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.cc
-  DEPS pbwire)
+  DEPS cereal pbwire)
 target_include_directories(test-messages PUBLIC ${CMAKE_BINARY_DIR})
 
 cc_test(
   protostruct-devtest3
   SRCS devtest.cc
-  DEPS test-messages gtest gtest_main
+  DEPS cereal gtest gtest_main test-messages
   PKGDEPS protobuf)
-

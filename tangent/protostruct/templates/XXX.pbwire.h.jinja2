@@ -10,48 +10,49 @@ extern "C"{
 
 {% for descr in filedescr.enum_type %}
 /* Serialize a {{descr.name}} value into a buffer */
-int pbemit_{{descr.name}}(pbwire_EmitContext ctx, {{descr.name}} value);
-{%- endfor %}
+int pbemit_{{descr.name}}(pbwire_EmitContext* ctx, {{descr.name}} value);
+{% endfor %}
 
 {% for descr in filedescr.message_type %}
 /* Serialize a {{descr.name}} object into a buffer */
-int pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj);
-{%- endfor %}
+int pbemit_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj);
+{% endfor %}
 
 {% for descr in filedescr.enum_type %}
 /* Deserialize a {{descr.name}} value from a buffer */
-int pbparse_{{descr.name}}(pbwire_ParseContext ctx, {{descr.name}}* value);
-{%- endfor %}
+int pbparse_{{descr.name}}(pbwire_ParseContext* ctx, {{descr.name}}* value);
+{% endfor %}
 
 {% for descr in filedescr.message_type %}
 /* Deserialize a {{descr.name}} object from a buffer */
-int pbparse_{{descr.name}}(pbwire_ParseContext ctx, {{descr.name}}* obj);
-{%- endfor %}
+int pbparse_{{descr.name}}(pbwire_ParseContext* ctx, {{descr.name}}* obj);
+{% endfor %}
 
-/* Backend emmission functions. These areincluded in the header as an
+/* Backend emission functions. These are included in the header as an
    implementation detail. Do not call these from user code. */
 {% for descr in filedescr.message_type %}
-int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj);
-{%- endfor %}
+int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj);
+int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj);
+{% endfor %}
 
 #ifdef __cplusplus
 } // extern "C"
 
 namespace pbwire {
 
-{%- for descr in filedescr.message_type %}
+{% for descr in filedescr.message_type %}
 // Serialize a {{descr.name}} object into a buffer
-inline int emit(pbwire_EmitContext ctx, const {{descr.name}}* obj) {
+inline int emit(pbwire_EmitContext* ctx, const {{descr.name}}* obj) {
   return ::pbemit_{{descr.name}}(ctx, obj);
 }
-{%- endfor %}
+{% endfor %}
 
-{%- for descr in filedescr.message_type %}
+{% for descr in filedescr.message_type %}
 // Deserialize a {{descr.name}} object from a buffer
-inline int parse(pbwire_ParseContext ctx, {{descr.name}}* obj){
+inline int parse(pbwire_ParseContext* ctx, {{descr.name}}* obj){
   return ::pbparse_{{descr.name}}(ctx, obj);
 }
-{%- endfor %}
+{% endfor %}
 
 } // namespace pbwire
 

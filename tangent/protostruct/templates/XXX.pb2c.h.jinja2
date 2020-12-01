@@ -3,7 +3,7 @@
 
 #include "tangent/protostruct/pbwire.h"
 #include "{{get_header_filepath(filedescr)}}"
-#include "{{include_basee}}.pb.h"
+#include "{{include_base}}.pb.h"
 
 {% for descr in filedescr.enum_type %}
 // Convert an enum value from a C++ binding object to a {{descr.name}} native
@@ -18,7 +18,7 @@ void pb2c(const {{fqn_typename_cpp(descr)}}& proto, {{descr.name}}* obj);
 
 {% for descr in filedescr.enum_type %}
 // Convert a native {{descr.name}} value to a protobuf C++ binding value
-{{fqn_typename_cpp(descr)}} c2pb({{descr.name}} value)
+{{fqn_typename_cpp(descr)}} c2pb({{descr.name}} value);
 {%- endfor %}
 
 {% for descr in filedescr.message_type %}

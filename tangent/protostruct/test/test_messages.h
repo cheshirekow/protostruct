@@ -1,3 +1,4 @@
+// Copyright 2020 Josh Bialkowski <josh.bialkowski@gmail.com>
 #pragma once
 #include <stdint.h>
 

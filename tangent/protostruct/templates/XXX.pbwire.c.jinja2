@@ -9,11 +9,11 @@ extern "C"{
 #endif
 
 {% for descr in filedescr.enum_type %}
-int pbemit_{{descr.name}}(pbwire_EmitContext ctx, {{descr.name}} value){
+int pbemit_{{descr.name}}(pbwire_EmitContext* ctx, {{descr.name}} value){
   return pbemit_int32(ctx, (int32_t)value);
 }
 
-int pbparse_{{descr.name}}(pbwire_ParseContext ctx, {{descr.name}}* value){
+int pbparse_{{descr.name}}(pbwire_ParseContext* ctx, {{descr.name}}* value){
   int32_t numeric_value;
   int result = pbparse_int32(ctx, &numeric_value);
   if(result < 0){
@@ -37,7 +37,7 @@ int pbparse_{{descr.name}}(pbwire_ParseContext ctx, {{descr.name}}* value){
 
 {% for descr in filedescr.message_type %}
 
-int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
+int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
   int write_result = 0;
 
   {% if has_packed_field(descr) or has_message_field(descr) %}
@@ -45,8 +45,6 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
   int delimit_size = 0;
   {% endif %}
 
-  switch(ctx.passno){
-    case 0: {
       uint32_t encoded_size = 0;
 {% for fielddescr in descr.field %}
       /* {{fielddescr.name}} */
@@ -58,7 +56,7 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
       encoded_size += write_result;
 
       delimit_size = 0;
-      delimit_ptr = ctx.length_cache.ptr++;
+      delimit_ptr = ctx->length_cache.ptr++;
       for(int idx=0; idx < obj->{{get_lengthfield(fielddescr)}}; idx++){
         write_result = {{get_emit_fun(fielddescr)}}(
           ctx, obj->{{fielddescr.name}}[idx]);
@@ -98,8 +96,8 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
       }
       encoded_size += write_result;
 
-      delimit_ptr = ctx.length_cache.ptr++;
-      write_result = {{get_emit_fun(fielddescr)}}(ctx, &obj->{{fielddescr.name}}[idx]);
+      delimit_ptr = ctx->length_cache.ptr++;
+      write_result = {{get_emit_fun(fielddescr, 0)}}(ctx, &obj->{{fielddescr.name}}[idx]);
       if(write_result < 0){
         return write_result;
       }
@@ -134,8 +132,8 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
     }
     encoded_size += write_result;
 
-    delimit_ptr = ctx.length_cache.ptr++;
-    write_result = {{get_emit_fun(fielddescr)}}(ctx, &obj->{{fielddescr.name}});
+    delimit_ptr = ctx->length_cache.ptr++;
+    write_result = {{get_emit_fun(fielddescr, 0)}}(ctx, &obj->{{fielddescr.name}});
     if(write_result < 0){
       return write_result;
     }
@@ -152,10 +150,17 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
   {% endif %}
 {% endfor %}
       return encoded_size;
-    }
+}
 
-    case 1:{
-      ctx.buffer.begin = ctx.buffer.ptr;
+int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
+  int write_result = 0;
+
+  {% if has_packed_field(descr) or has_message_field(descr) %}
+  uint32_t* delimit_ptr = NULL;
+  int delimit_size = 0;
+  {% endif %}
+
+      char* buffer_begin = ctx->buffer.ptr;
 {% for fielddescr in descr.field %}
       /* {{fielddescr.name}} */
   {% if is_packed(fielddescr) %}
@@ -163,22 +168,22 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
       if(write_result < 0){
         return write_result;
       }
-      ctx.buffer.ptr += write_result;
+      ctx->buffer.ptr += write_result;
 
-      delimit_ptr = ctx.length_cache.ptr++;
+      delimit_ptr = ctx->length_cache.ptr++;
       delimit_size = *delimit_ptr;
       write_result = pbemit_uint32(ctx, delimit_size);
       if(write_result < 0){
         return write_result;
       }
-      ctx.buffer.ptr += write_result;
+      ctx->buffer.ptr += write_result;
 
       for(int idx=0; idx < obj->{{get_lengthfield(fielddescr)}}; idx++){
         write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
         if(write_result < 0){
           return write_result;
         }
-        ctx.buffer.ptr += write_result;
+        ctx->buffer.ptr += write_result;
       }
   {% elif is_repeated(fielddescr) %}
     {% if is_primitive(fielddescr) %}
@@ -187,13 +192,13 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
       if(write_result < 0){
         return write_result;
       }
-      ctx.buffer.ptr += write_result;
+      ctx->buffer.ptr += write_result;
 
       write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
       if(write_result < 0){
         return write_result;
       }
-      ctx.buffer.ptr += write_result;
+      ctx->buffer.ptr += write_result;
     }
     {% else %}
     for(int idx=0; idx < obj->{{get_lengthfield(fielddescr)}}; idx++){
@@ -201,21 +206,21 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
       if(write_result < 0){
         return write_result;
       }
-      ctx.buffer.ptr += write_result;
+      ctx->buffer.ptr += write_result;
 
-      delimit_ptr = ctx.length_cache.ptr++;
+      delimit_ptr = ctx->length_cache.ptr++;
       delimit_size = *delimit_ptr;
       write_result = pbemit_uint32(ctx, delimit_size);
       if(write_result < 0){
         return write_result;
       }
-      ctx.buffer.ptr += write_result;
+      ctx->buffer.ptr += write_result;
 
-      write_result = {{get_emit_fun(fielddescr)}}(ctx, &obj->{{fielddescr.name}}[idx]);
+      write_result = {{get_emit_fun(fielddescr, 1)}}(ctx, &obj->{{fielddescr.name}}[idx]);
       if(write_result < 0){
         return write_result;
       }
-      ctx.buffer.ptr += write_result;
+      ctx->buffer.ptr += write_result;
     }
     {% endif %}
   {% else %}
@@ -224,60 +229,53 @@ int _pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
     if(write_result < 0){
       return write_result;
     }
-    ctx.buffer.ptr += write_result;
+    ctx->buffer.ptr += write_result;
 
     write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}});
     if(write_result < 0){
       return write_result;
     }
-    ctx.buffer.ptr += write_result;
+    ctx->buffer.ptr += write_result;
     {% else %}
     write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
     if(write_result < 0){
       return write_result;
     }
-    ctx.buffer.ptr += write_result;
+    ctx->buffer.ptr += write_result;
 
-    delimit_ptr = ctx.length_cache.ptr++;
+    delimit_ptr = ctx->length_cache.ptr++;
     delimit_size = *delimit_ptr;
     write_result = pbemit_uint32(ctx, delimit_size);
     if(write_result < 0){
       return write_result;
     }
-    ctx.buffer.ptr += write_result;
+    ctx->buffer.ptr += write_result;
 
-    write_result = {{get_emit_fun(fielddescr)}}(ctx, &obj->{{fielddescr.name}});
+    write_result = {{get_emit_fun(fielddescr, 1)}}(ctx, &obj->{{fielddescr.name}});
     if(write_result < 0){
       return write_result;
     }
-    ctx.buffer.ptr += write_result;
+    ctx->buffer.ptr += write_result;
     {% endif %}
   {% endif %}
 {% endfor %}
 
-      return (ctx.buffer.ptr - ctx.buffer.begin);
-    }
-    default:
-      return -1;
-  }
+      return (ctx->buffer.ptr - buffer_begin);
 }
 
-int pbemit_{{descr.name}}(pbwire_EmitContext ctx, const {{descr.name}}* obj){
+int pbemit_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
   int retcode = 0;
-  int passno = 0;
 
-  for(passno = 0; passno < 2; passno++){
-    ctx.passno = passno;
-    retcode = _pbemit_{{descr.name}}(ctx, obj);
-    if(retcode < 0){
-      return retcode;
-    }
+  retcode = _pbemit0_{{descr.name}}(ctx, obj);
+  if(retcode < 0){
+    return retcode;
   }
+  retcode = _pbemit1_{{descr.name}}(ctx, obj);
   return retcode;
 }
 
 static int _parse_fielditem_{{descr.name}}(
-    pbwire_ParseContext ctx, {{descr.name}}* obj, uint32_t tag){
+    pbwire_ParseContext* ctx, {{descr.name}}* obj, uint32_t tag){
   switch(tag){
 {% for fielddescr in descr.field %}
     /* {{fielddescr.name}} */
@@ -318,7 +316,7 @@ static int _parse_fielditem_{{descr.name}}(
 
 }
 
-int pbparse_{{descr.name}}(pbwire_ParseContext ctx, {{descr.name}}* obj){
+int pbparse_{{descr.name}}(pbwire_ParseContext* ctx, {{descr.name}}* obj){
   return pbwire_parse_message(
     ctx, (pbwire_FieldItemCallback)_parse_fielditem_{{descr.name}}, obj);
 }

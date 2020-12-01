@@ -9,58 +9,62 @@ extern "C" {
 #endif
 
 /* Serialize a MyEnumA value into a buffer */
-int pbemit_MyEnumA(pbwire_EmitContext ctx, MyEnumA value);
+int pbemit_MyEnumA(pbwire_EmitContext* ctx, MyEnumA value);
 
 /* Serialize a MyMessageA object into a buffer */
-int pbemit_MyMessageA(pbwire_EmitContext ctx, const MyMessageA* obj);
+int pbemit_MyMessageA(pbwire_EmitContext* ctx, const MyMessageA* obj);
 /* Serialize a MyMessageB object into a buffer */
-int pbemit_MyMessageB(pbwire_EmitContext ctx, const MyMessageB* obj);
+int pbemit_MyMessageB(pbwire_EmitContext* ctx, const MyMessageB* obj);
 /* Serialize a MyMessageC object into a buffer */
-int pbemit_MyMessageC(pbwire_EmitContext ctx, const MyMessageC* obj);
+int pbemit_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj);
 
 /* Deserialize a MyEnumA value from a buffer */
-int pbparse_MyEnumA(pbwire_ParseContext ctx, MyEnumA* value);
+int pbparse_MyEnumA(pbwire_ParseContext* ctx, MyEnumA* value);
 
 /* Deserialize a MyMessageA object from a buffer */
-int pbparse_MyMessageA(pbwire_ParseContext ctx, MyMessageA* obj);
+int pbparse_MyMessageA(pbwire_ParseContext* ctx, MyMessageA* obj);
 /* Deserialize a MyMessageB object from a buffer */
-int pbparse_MyMessageB(pbwire_ParseContext ctx, MyMessageB* obj);
+int pbparse_MyMessageB(pbwire_ParseContext* ctx, MyMessageB* obj);
 /* Deserialize a MyMessageC object from a buffer */
-int pbparse_MyMessageC(pbwire_ParseContext ctx, MyMessageC* obj);
+int pbparse_MyMessageC(pbwire_ParseContext* ctx, MyMessageC* obj);
 
-/* Backend emmission functions. These areincluded in the header as an
+/* Backend emission functions. These are included in the header as an
    implementation detail. Do not call these from user code. */
-
-int _pbemit_MyMessageA(pbwire_EmitContext ctx, const MyMessageA* obj);
-int _pbemit_MyMessageB(pbwire_EmitContext ctx, const MyMessageB* obj);
-int _pbemit_MyMessageC(pbwire_EmitContext ctx, const MyMessageC* obj);
+int _pbemit0_MyMessageA(pbwire_EmitContext* ctx, const MyMessageA* obj);
+int _pbemit1_MyMessageA(pbwire_EmitContext* ctx, const MyMessageA* obj);
+int _pbemit0_MyMessageB(pbwire_EmitContext* ctx, const MyMessageB* obj);
+int _pbemit1_MyMessageB(pbwire_EmitContext* ctx, const MyMessageB* obj);
+int _pbemit0_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj);
+int _pbemit1_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj);
 
 #ifdef __cplusplus
 }  // extern "C"
 
 namespace pbwire {
+
 // Serialize a MyMessageA object into a buffer
-inline int emit(pbwire_EmitContext ctx, const MyMessageA* obj) {
+inline int emit(pbwire_EmitContext* ctx, const MyMessageA* obj) {
   return ::pbemit_MyMessageA(ctx, obj);
 }
 // Serialize a MyMessageB object into a buffer
-inline int emit(pbwire_EmitContext ctx, const MyMessageB* obj) {
+inline int emit(pbwire_EmitContext* ctx, const MyMessageB* obj) {
   return ::pbemit_MyMessageB(ctx, obj);
 }
 // Serialize a MyMessageC object into a buffer
-inline int emit(pbwire_EmitContext ctx, const MyMessageC* obj) {
+inline int emit(pbwire_EmitContext* ctx, const MyMessageC* obj) {
   return ::pbemit_MyMessageC(ctx, obj);
 }
+
 // Deserialize a MyMessageA object from a buffer
-inline int parse(pbwire_ParseContext ctx, MyMessageA* obj) {
+inline int parse(pbwire_ParseContext* ctx, MyMessageA* obj) {
   return ::pbparse_MyMessageA(ctx, obj);
 }
 // Deserialize a MyMessageB object from a buffer
-inline int parse(pbwire_ParseContext ctx, MyMessageB* obj) {
+inline int parse(pbwire_ParseContext* ctx, MyMessageB* obj) {
   return ::pbparse_MyMessageB(ctx, obj);
 }
 // Deserialize a MyMessageC object from a buffer
-inline int parse(pbwire_ParseContext ctx, MyMessageC* obj) {
+inline int parse(pbwire_ParseContext* ctx, MyMessageC* obj) {
   return ::pbparse_MyMessageC(ctx, obj);
 }
 
