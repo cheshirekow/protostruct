@@ -45,7 +45,7 @@ endif()
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/CImg)
   add_library(cimg INTERFACE)
-  target_include_directories(cimg INTERFACE SYSTEM CImg)
+  target_include_directories(cimg INTERFACE SYSTEM ".")
   target_compile_definitions(cimg INTERFACE cimg_date="0" cimg_time="0")
 endif()
 

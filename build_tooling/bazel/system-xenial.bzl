@@ -84,6 +84,7 @@ cc_library(
   hdrs = glob(["usr/include/libpng12/*.h"]),
   strip_include_prefix = "usr/include",
   visibility = ["//visibility:public"],
+  deps = [":zlib"],
 )
 
 cc_library(
@@ -325,7 +326,7 @@ cc_library(
   includes = ["usr/include/cairo"],
   hdrs = glob(["usr/include/cairo/**/*.h"]),
   srcs = glob(["usr/lib/x86_64-linux-gnu/libcairo.*"]),
-  deps = [":freetype2", "glib-2.0", ":libpng12", ":pixman-1"],
+  deps = [":freetype2", "glib-2.0", ":libpng12", ":pixman-1", ":libX11"],
   visibility = ["//visibility:public"],
 )
 
@@ -470,7 +471,7 @@ cc_library(
   includes = ["usr/include/pango-1.0"],
   hdrs = glob(["usr/include/pango-1.0/**/*.h"]),
   srcs = glob(["usr/lib/x86_64-linux-gnu/libpango-1.0.*"]),
-  deps = [":glib-2.0", ":libthai"],
+  deps = [":glib-2.0", ":gobject-2.0", ":libthai"],
   visibility = ["//visibility:public"],
 )
 
@@ -478,6 +479,7 @@ cc_library(
   name = "pangoft2-1.0",
   srcs = glob(["usr/lib/x86_64-linux-gnu/libpangoft2-1.0.*"]),
   deps = [":pango-1.0", ":freetype2", ":fontconfig"],
+  visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -755,4 +757,46 @@ py_runtime_pair(
   name = "py_runtime",
   py2_runtime = ":python-2.7.12",
   py3_runtime = ":python-3.5.2",
+)
+
+cc_library(
+  name = "libzip-config",
+  hdrs = [
+    "usr/lib/x86_64-linux-gnu/libzip/include/zipconf.h",
+  ],
+  strip_include_prefix = "usr/lib/x86_64-linux-gnu/libzip/include",
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "libzip",
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libzip.so.4",
+    "usr/lib/x86_64-linux-gnu/libzip.so",
+    "usr/lib/x86_64-linux-gnu/libzip.so.4.0.0",
+    "usr/lib/x86_64-linux-gnu/libzip.a",
+  ],
+  hdrs = [
+    "usr/include/zip.h",
+  ],
+  deps = [":zlib", ":libzip-config"],
+  strip_include_prefix = "usr/include",
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "libuuid",
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libuuid.so",
+    "usr/lib/x86_64-linux-gnu/libuuid.a",
+  ],
+  hdrs = ["usr/include/uuid/uuid.h"],
+  strip_include_prefix = "usr/include",
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "libpng",
+  deps = [":libpng12"],
+  visibility = ["//visibility:public"],
 )

@@ -49,6 +49,17 @@ function(join outvar)
       PARENT_SCOPE)
 endfunction()
 
+function(string_repeat value count outvar)
+  unset(_local)
+  math(EXPR range_end "${count} - 1")
+  foreach(_ RANGE ${range_end})
+    set(_local "${_local}${value}")
+  endforeach()
+  set(${outvar}
+      ${_local}
+      PARENT_SCOPE)
+endfunction()
+
 # Backport list(FILTER ...) to cmake < 3.6
 function(list_filter listname)
   set(localcopy ${${listname}})
@@ -292,7 +303,14 @@ endfunction()
 function(cc_binary target_name)
   set(flags ADD_RUNTARGET)
   set(oneargs)
-  set(multiargs INC LIBDIRS SRCS DEFS DEPS PKGDEPS PROPERTIES)
+  set(multiargs
+      INC
+      LIBDIRS
+      SRCS
+      DEFS
+      DEPS
+      PKGDEPS
+      PROPERTIES)
   cmake_parse_arguments(_args "${flags}" "${oneargs}" "${multiargs}" ${ARGN})
 
   add_executable(${target_name} ${_args_UNPARSED_ARGUMENTS} ${_args_SRCS})
@@ -365,13 +383,14 @@ function(cc_test target_name)
   endif()
 
   if(args_TEST_DEPS)
-    add_custom_target(testdeps.${target_name} DEPENDS ${TEST_DEPS})
+    add_custom_target(testdeps.${target_name} DEPENDS ${args_TEST_DEPS})
     add_dependencies(testdeps testdeps.${target_name})
   endif()
 
   tangent_addtest(
     NAME ${target_name}
-    COMMAND ${cmd} DEPENDS ${args_TEST_DEPS}
+    COMMAND ${cmd}
+    DEPENDS ${args_TEST_DEPS}
     WORKING_DIRECTORY ${args_WORKING_DIRECTORY}
     LABELS ${args_LABELS})
 
@@ -520,4 +539,61 @@ function(travis_decrypt tgtfile srcfile keyid)
       COMMAND chmod 0600 ${tgtfile}
       COMMENT "Decrypting ${_filename}")
   endif()
+endfunction()
+
+# Uses the swift command line client to fetch
+function(tangent_fetchobj uuid filename)
+  add_custom_command(
+    OUTPUT ${filename}
+    COMMAND
+      # cmake-format: off
+      swift
+      "--os-auth-url=https://auth.cloud.ovh.net/v3/"
+      "--os-identity-api-version=3"
+      "--os-region-name=BHS"
+      "--os-tenant-id=b5e0ef36abcb498b890d84b61555f063"
+      "--os-tenant-name=0728979165260176"
+      "--os-username=user-px7eRuuMs4hy"
+      "--os-password=HHScMqa9DHaAphNqQx6YpaRsMVE4AakH"
+      # cmake-format: on
+      download tangent-build ${uuid} -o ${filename}
+    COMMENT "Downloading ${filename}")
+endfunction()
+
+function(tangent_unzip targetname zipfile)
+  cmake_parse_arguments(args "ALL" "WORKING_DIRECTORY" "OUTPUT" ${ARGN})
+  set(zip_outputs)
+  if(args_WORKING_DIRECTORY)
+    foreach(outfile ${args_OUTPUT})
+      list(APPEND zip_outputs "${args_WORKING_DIRECTORY}/${outfile}")
+    endforeach()
+  else()
+    set(zip_outputs ${args_OUTPUT})
+  endif()
+
+  add_custom_command(
+    DEPENDS ${zipfile}
+    OUTPUT ${zip_outputs}
+    COMMAND ${CMAKE_COMMAND} -E tar xf ${zipfile}
+    WORKING_DIRECTORY ${args_WORKING_DIRECTORY}
+    COMMENT "Unzipping ${zipfile}")
+
+  set(maybe_ALL)
+  if(${args_ALL})
+    set(maybe_ALL "ALL")
+  endif()
+  add_custom_target(
+    ${targetname}
+    ${maybe_ALL}
+    DEPENDS ${zip_outputs})
+
+endfunction()
+
+function(tangent_verify_image target_prefix imgfile reference_hash)
+  tangent_addtest(
+    NAME phash-verify-${target_prefix}${imgfile}
+    COMMAND $<TARGET_FILE:phash-exe> verify ${imgfile} ${reference_hash}
+    DEPENDS phash-exe
+    WORKING_DIRECTORY ${args_WORKING_DIRECTORY}
+    LABELS ${args_LABELS})
 endfunction()

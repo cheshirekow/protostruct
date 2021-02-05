@@ -20,6 +20,7 @@
 
 #include "argue/argue.h"
 #include "tangent/protostruct/descriptor_extensions.pb.h"
+#include "tangent/util/fallthrough.h"
 #include "tangent/util/stringutil.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
@@ -236,6 +237,7 @@ void get_compatible(
   switch (field_type.kind) {
     case CXType_Float:
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_FLOAT);
+      TANGENT_FALLTHROUGH
     case CXType_Double:
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_DOUBLE);
       return;
@@ -245,6 +247,7 @@ void get_compatible(
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_SINT32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_FIXED32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_SFIXED32);
+      TANGENT_FALLTHROUGH
     case CXType_Long:
     case CXType_LongLong:
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_INT64);
@@ -257,6 +260,7 @@ void get_compatible(
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_INT32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_UINT32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_FIXED32);
+      TANGENT_FALLTHROUGH
     case CXType_ULong:
     case CXType_ULongLong:
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_UINT64);
@@ -266,6 +270,7 @@ void get_compatible(
 
     case CXType_Bool:
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_BOOL);
+      return;
 
     default:
       break;

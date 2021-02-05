@@ -224,6 +224,32 @@ with section("parse"):
       },
     },
 
+    "tangent_fetchobj": {
+      "pargs": 2,
+      "kwargs": {
+        "OUTDIR": 1,
+      }
+    },
+
+    "tangent_rmark_render": {
+      "pargs": 1,
+      "kwargs": {
+        "UUID": 1,
+        "OUTPUT": 1,
+        "FORMAT": 1,
+        "PAGENO": 1,
+        "DEPENDS": 1
+      }
+    },
+
+    "tangent_unzip": {
+      "pargs": "1+",
+      "kwargs": {
+        "OUTPUT": "1+",
+        "WORKING_DIRECTORY": 1,
+      }
+    },
+
 
     # GtkDocConfig.cmake
     "gtk_doc_add_module": {
