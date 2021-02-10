@@ -81,6 +81,7 @@ string(REGEX REPLACE " +" ";" _pydev_libs "${_pydev_libs}")
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip
+         ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
   DEPENDS gen.py
           make_pyzip.py
           templates/XXX.cereal.h.jinja2
@@ -89,11 +90,20 @@ add_custom_command(
           templates/XXX.pb2c.cc.jinja2
           templates/XXX.pb2c.h.jinja2
           templates/XXX.proto.jinja2
+          ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
   COMMAND
     ${_python} -Bm tangent.protostruct.make_pyzip -o
     ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip -m
     ${CMAKE_CURRENT_SOURCE_DIR}/gen.py
+  # NOTE(josh): cmake really sucks! There is no way to add a file-level
+  # dependency between the protostruct `add_executable` and this .zip file... so
+  # we have to generate a stub .cc file just so we can depend on it in the
+  # protostruct rule.
+  COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_custom_target(protostruct-pyzip_exe_body
+                  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip)
 
 # ======================
 # Protostruct elf-header
@@ -102,37 +112,35 @@ add_custom_command(
 get_version_from_header(protostruct-main.cc TANGENT_PROTOSTRUCT_VERSION)
 
 cc_binary(
-  protostruct-exe
+  protostruct
   SRCS protostruct-main.cc
        ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.cc
+       ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
   INC PRIVATE ${_pydev_includes}
   LIBDIRS PRIVATE ${_pydev_libdirs}
   DEPS argue tangent::util libclang ${_pydev_libs}
   PKGDEPS libglog protobuf)
-target_include_directories(protostruct-exe PUBLIC ${CLANG_INCLUDE_DIRS}
-                                                  ${CMAKE_BINARY_DIR})
 
+target_include_directories(protostruct PUBLIC ${CLANG_INCLUDE_DIRS}
+                                              ${CMAKE_BINARY_DIR})
+
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/empty.cc
+                            PROPERTIES GENERATED TRUE)
+
+# Strip symbols from release binary and concat the data trailer to create the
+# final binary
 add_custom_command(
-  TARGET protostruct-exe
+  TARGET protostruct
   POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:protostruct-exe>
-          ${CMAKE_BINARY_DIR}/protostruct-exe.debug
-  COMMAND ${CMAKE_STRIP} -g $<TARGET_FILE:protostruct-exe>)
-
-# =========================
-# Protostruct packed binary
-# =========================
-
-set(_protostruct ${CMAKE_CURRENT_BINARY_DIR}/protostruct)
-
-add_custom_command(
-  OUTPUT ${_protostruct}
-  DEPENDS protostruct-exe ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip
+  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:protostruct>
+          ${CMAKE_BINARY_DIR}/protostruct.debug
+  COMMAND ${CMAKE_STRIP} -g $<TARGET_FILE:protostruct>
+  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:protostruct>
+          $<TARGET_FILE:protostruct>.hdr
   COMMAND
-    cat $<TARGET_FILE:protostruct-exe>
-    ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip >
-    ${CMAKE_CURRENT_BINARY_DIR}/protostruct
-  COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/protostruct)
+    cat $<TARGET_FILE:protostruct>.hdr
+    ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip > $<TARGET_FILE:protostruct>
+  COMMAND chmod +x $<TARGET_FILE:protostruct>)
 
 # ========================
 # Protostruct installation
@@ -154,7 +162,7 @@ configure_package_config_file(
   PATH_VARS CMAKE_INSTALL_BINDIR
   INSTALL_DESTINATION ${_package_location})
 
-install(PROGRAMS ${_protostruct} DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(TARGETS protostruct RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/protostruct-config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/protostruct-config-version.cmake"
@@ -256,10 +264,11 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pbwire-config.cmake"
 # compile .h/.proto -> .pb3
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
-  DEPENDS ${_protostruct} ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.h
+  DEPENDS protostruct ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.h
           ${CMAKE_CURRENT_SOURCE_DIR}/test/test_in.proto
+          ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
   COMMAND
-    ${_protostruct} tangent/protostruct/test/test_messages.h #
+    $<TARGET_FILE:protostruct> tangent/protostruct/test/test_messages.h #
     --step compile #
     --proto-path ${CMAKE_CURRENT_SOURCE_DIR}/test #
     --proto-in test_in.proto #
@@ -275,11 +284,11 @@ add_custom_command(
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.cc
-  DEPENDS ${_protostruct} ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
+  DEPENDS protostruct ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
           ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
   COMMAND
     # cmake-format: off
-    ${_protostruct} --step gen #
+    $<TARGET_FILE:protostruct> --step gen #
     --outfile ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3 #
     --proto-out ${CMAKE_SOURCE_DIR} #
     --cpp-out ${CMAKE_SOURCE_DIR}

@@ -252,7 +252,7 @@ init-import=no
 
 # A regular expression matching the beginning of the name of dummy variables
 # (i.e. not used).
-dummy-variables-rgx=_$|dummy|_+[a-zA-Z0-9]*?$
+dummy-variables-rgx=_$|dummy|^_
 
 # List of additional names supposed to be defined in builtins. Remember that
 # you should avoid to define new builtins when possible.
