@@ -62,3 +62,10 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/phash)
     target_pkg_depends(${target} libpng)
   endforeach()
 endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gulrak/filesystem)
+  add_library(gulrak_filesystem INTERFACE)
+  target_include_directories(gulrak_filesystem
+                             INTERFACE SYSTEM gulrak/filesystem/include)
+  add_library(gulrak::filesystem ALIAS gulrak_filesystem)
+endif()

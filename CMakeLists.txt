@@ -46,7 +46,10 @@ pkg_find(
   PKG libelf
   PKG libglog
   PKG libpng NAMES libpng12 libpng16
+  PKG librsvg-2.0
   PKG librtlsdr
+  PKG libssh
+  PKG libssh_threads
   PKG libudev
   PKG libzip
   PKG openssl

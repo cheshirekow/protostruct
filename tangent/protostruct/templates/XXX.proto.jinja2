@@ -16,7 +16,7 @@ import "{{depend}}";
 enum {{enumdescr.name}} {
   {% set columns = get_enum_columns(enumdescr.value) %}
   {% for valuedescr in enumdescr.value %}
-  {{columns.format(valuedescr.name, valuedescr.number)}}  {{get_comment(valuedescr)}}
+  {{columns.format(valuedescr.name, valuedescr.number)}};  {{get_comment(valuedescr)}}
   {% endfor %}
 }
 

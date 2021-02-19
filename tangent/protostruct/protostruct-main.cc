@@ -81,7 +81,85 @@ struct ProgramOptions {
   std::string step{"both"};
   std::vector<std::string> proto_path;
   std::vector<std::string> clang_options;
+  std::vector<std::string> only_list;
 };
+
+template <class T, class U>
+bool operator==(const google::protobuf::RepeatedField<T>& lhs,
+                const std::vector<U>& rhs) {
+  if (lhs.size() != static_cast<int>(rhs.size())) {
+    return false;
+  }
+  for (int idx = 0; idx < lhs.size(); idx++) {
+    if (lhs.Get(idx) != rhs[idx]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+google::protobuf::SourceCodeInfo_Location* find_location(
+    google::protobuf::FileDescriptorProto* proto,
+    const std::vector<int>& query_path) {
+  auto* source_code_info = proto->mutable_source_code_info();
+  for (int idx = 0; idx < source_code_info->location_size(); idx++) {
+    auto* location = source_code_info->mutable_location(idx);
+    if (location->path() == query_path) {
+      return location;
+    }
+  }
+
+  auto* location = source_code_info->add_location();
+  for (size_t idx = 0; idx < query_path.size(); idx++) {
+    location->add_path(query_path[idx]);
+  }
+  return location;
+}
+
+std::string get_cursor_comment(CXCursor c) {
+  std::string comment;
+  CXString comment_cxstr = clang_Cursor_getRawCommentText(c);
+  const char* comment_cstr = clang_getCString(comment_cxstr);
+  if (comment_cstr) {
+    comment = clang_getCString(comment_cxstr);
+  }
+  clang_disposeString(comment_cxstr);
+  return comment;
+}
+
+std::string strip_comment_prefix(const std::string& comment) {
+  std::stringstream strm{};
+  if (stringutil::startswith(comment, "/*")) {
+    for (auto& line : stringutil::split(comment, '\n')) {
+      if (stringutil::startswith(line, "/*")) {
+        strm << line.substr(2);
+      } else if (stringutil::startswith(line, "*")) {
+        strm << line.substr(1);
+      } else if (stringutil::startswith(line, " *")) {
+        strm << line.substr(2);
+      } else {
+        strm << line;
+      }
+    }
+    std::string out = strm.str();
+    return out.substr(0, out.size() - 2);
+  } else {
+    for (auto& line : stringutil::split(comment, '\n')) {
+      if (stringutil::startswith(line, "//!<")) {
+        strm << line.substr(4);
+      } else if (stringutil::startswith(line, "///<")) {
+        strm << line.substr(4);
+      } else if (stringutil::startswith(line, "///")) {
+        strm << line.substr(3);
+      } else if (stringutil::startswith(line, "//<")) {
+        strm << line.substr(3);
+      } else if (stringutil::startswith(line, "//")) {
+        strm << line.substr(2);
+      }
+    }
+    return strm.str();
+  }
+}
 
 void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
   using argue::keywords::action;
@@ -128,6 +206,10 @@ void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
       help="Root directory of the output tree for generated C and C++ files");
 
   parser->add_argument(
+      "--only", dest=&(opts->only_list), nargs="+",
+      help="Only generate bindings of these types");
+
+  parser->add_argument(
       "remainder", nargs=argue::REMAINDER, dest=&(opts->clang_options),
       help="Command line flags passed to clang");
 
@@ -155,8 +237,10 @@ void visit_tree(CXCursor cursor, Args&&... args) {
 
 class EnumVisitor : public ClangVisitor {
  public:
-  explicit EnumVisitor(google::protobuf::EnumDescriptorProto* proto)
-      : proto_{proto} {
+  explicit EnumVisitor(google::protobuf::EnumDescriptorProto* proto,
+                       int enumidx,
+                       google::protobuf::FileDescriptorProto* file_proto)
+      : proto_{proto}, enumidx_{enumidx}, file_proto_{file_proto} {
     proto_->clear_value();
   }
   virtual ~EnumVisitor() {}
@@ -167,14 +251,15 @@ class EnumVisitor : public ClangVisitor {
       return CXChildVisit_Continue;
     }
 
+    int value_idx = proto_->value_size();
     auto* value = proto_->add_value();
     CXString namestr = clang_getCursorSpelling(c);
     value->set_name(clang_getCString(namestr));
     clang_disposeString(namestr);
 
-    value->set_number(clang_getEnumConstantDeclValue(c));
+    const int number = clang_getEnumConstantDeclValue(c);
+    value->set_number(number);
 
-    // TODO(josh): use unknown fields to add a comment to the value
     CXString comment_cxstr = clang_Cursor_getRawCommentText(c);
     const char* comment_cstr = clang_getCString(comment_cxstr);
     if (comment_cstr) {
@@ -185,6 +270,19 @@ class EnumVisitor : public ClangVisitor {
           ->MutableExtension(google::protobuf::ProtostructEnumValueOptions::
                                  protostruct_options)
           ->set_protostruct_comment(comment);
+
+      //  enum_type is field #5 within FileDescriptorProto
+      auto* location = find_location(file_proto_, {5, enumidx_, 2, value_idx});
+      std::string stripped_comment = strip_comment_prefix(comment);
+
+      // TODO(josh): this is a hack, use clang_Curosr_getCommentRange to
+      // determine if it's leading or trailing
+      if (stringutil::startswith(comment, "//!<") ||
+          stringutil::startswith(comment, "///<")) {
+        location->set_trailing_comments(stripped_comment);
+      } else {
+        location->set_leading_comments(stripped_comment);
+      }
     }
 
     // find the value in the existing proto
@@ -193,10 +291,13 @@ class EnumVisitor : public ClangVisitor {
 
  private:
   google::protobuf::EnumDescriptorProto* proto_;
+  int enumidx_;
+  google::protobuf::FileDescriptorProto* file_proto_;
 };
 
 google::protobuf::EnumDescriptorProto* find_enum(
-    google::protobuf::FileDescriptorProto* proto, std::string needle) {
+    google::protobuf::FileDescriptorProto* proto, std::string needle,
+    int* found_idx) {
   std::string needle_stripped;
   if (needle.substr(0, 2) == "dw") {
     needle_stripped = needle.substr(2);
@@ -221,10 +322,12 @@ google::protobuf::EnumDescriptorProto* find_enum(
         LOG(WARNING) << "Enum " << candidate_name << " changed to " << needle;
         candidate_proto->set_name(needle);
       }
+      *found_idx = idx;
       return candidate_proto;
     }
   }
 
+  *found_idx = proto->enum_type_size();
   auto* new_enum = proto->add_enum_type();
   new_enum->set_name(needle);
   return new_enum;
@@ -453,8 +556,12 @@ bool fieldname_is_lengthfield(const std::string& fieldname,
 
 class MessageVisitor : public ClangVisitor {
  public:
-  explicit MessageVisitor(google::protobuf::DescriptorProto* proto)
-      : proto_{proto}, next_number_{1} {
+  explicit MessageVisitor(google::protobuf::DescriptorProto* proto, int msgidx,
+                          google::protobuf::FileDescriptorProto* file_proto)
+      : proto_{proto},
+        msgidx_{msgidx},
+        file_proto_{file_proto},
+        next_number_{1} {
     for (int idx = 0; idx < proto_->reserved_range_size(); idx++) {
       auto range = proto_->reserved_range(idx);
       if (range.has_end()) {
@@ -539,21 +646,39 @@ class MessageVisitor : public ClangVisitor {
 
     CXString comment_cxstr = clang_Cursor_getRawCommentText(c);
     const char* comment_cstr = clang_getCString(comment_cxstr);
+    std::string comment{};
     if (comment_cstr) {
-      std::string comment = clang_getCString(comment_cxstr);
+      comment = clang_getCString(comment_cxstr);
       if (comment.find("protostruct: skip") != std::string::npos) {
         LOG(INFO) << "Skipping field " << field->name();
         return CXChildVisit_Continue;
       }
       clang_disposeString(comment_cxstr);
-      field->mutable_options()
-          ->MutableExtension(
-              google::protobuf::ProtostructFieldOptions::protostruct_options)
-          ->set_protostruct_comment(comment);
     }
 
     if (needs_number) {
       field->set_number(get_next_number());
+    }
+
+    if (!comment.empty()) {
+      field->mutable_options()
+          ->MutableExtension(
+              google::protobuf::ProtostructFieldOptions::protostruct_options)
+          ->set_protostruct_comment(comment);
+
+      //  message_type is field #4 within FileDescriptorProto
+      int field_idx = output_fields_.size();
+      auto* location = find_location(file_proto_, {4, msgidx_, 2, field_idx});
+
+      // TODO(josh): this is a hack, use clang_Curosr_getCommentRange to
+      // determine if it's leading or trailing
+      std::string stripped_comment = strip_comment_prefix(comment);
+      if (stringutil::startswith(comment, "//!<") ||
+          stringutil::startswith(comment, "///<")) {
+        location->set_trailing_comments(stripped_comment);
+      } else {
+        location->set_leading_comments(stripped_comment);
+      }
     }
 
     output_fields_.emplace_back(std::move(field));
@@ -641,6 +766,8 @@ class MessageVisitor : public ClangVisitor {
 
  private:
   google::protobuf::DescriptorProto* proto_;
+  int msgidx_;
+  google::protobuf::FileDescriptorProto* file_proto_;
   int next_number_;
   std::set<IntRange> reserved_ranges_;
   std::set<int> existing_numbers_;
@@ -649,7 +776,8 @@ class MessageVisitor : public ClangVisitor {
 };
 
 google::protobuf::DescriptorProto* find_message(
-    google::protobuf::FileDescriptorProto* proto, std::string needle) {
+    google::protobuf::FileDescriptorProto* proto, std::string needle,
+    int* found_idx) {
   std::string needle_stripped;
   if (needle.substr(0, 2) == "dw") {
     needle_stripped = needle.substr(2);
@@ -675,24 +803,16 @@ google::protobuf::DescriptorProto* find_message(
                      << needle;
         candidate_proto->set_name(needle);
       }
+      *found_idx = idx;
       return candidate_proto;
     }
   }
 
+  *found_idx = proto->message_type_size();
   auto* new_msg = proto->add_message_type();
   new_msg->set_name(needle);
-  return new_msg;
-}
 
-std::string get_cursor_comment(CXCursor c) {
-  std::string comment;
-  CXString comment_cxstr = clang_Cursor_getRawCommentText(c);
-  const char* comment_cstr = clang_getCString(comment_cxstr);
-  if (comment_cstr) {
-    comment = clang_getCString(comment_cxstr);
-  }
-  clang_disposeString(comment_cxstr);
-  return comment;
+  return new_msg;
 }
 
 class FileVisitor : public ClangVisitor {
@@ -738,14 +858,20 @@ class FileVisitor : public ClangVisitor {
           needle = clang_getCString(namestr);
           clang_disposeString(namestr);
         }
-        auto* enum_proto = find_enum(file_proto_, needle);
-        visit_tree<EnumVisitor>(c, enum_proto);
+        int enumidx = 0;
+        auto* enum_proto = find_enum(file_proto_, needle, &enumidx);
+        visit_tree<EnumVisitor>(c, enum_proto, enumidx, file_proto_);
 
         if (comment.size() > 0) {
           enum_proto->mutable_options()
               ->MutableExtension(
                   google::protobuf::ProtostructEnumOptions::protostruct_options)
               ->set_protostruct_comment(comment);
+
+          //  enum_type is field #5 within FileDescriptorProto
+          auto* location = find_location(file_proto_, {5, enumidx});
+          std::string stripped_comment = strip_comment_prefix(comment);
+          location->set_leading_comments(stripped_comment);
         }
 
         return CXChildVisit_Continue;
@@ -772,14 +898,20 @@ class FileVisitor : public ClangVisitor {
           clang_disposeString(namestr);
         }
 
-        auto* msg_proto = find_message(file_proto_, needle);
-        visit_tree<MessageVisitor>(c, msg_proto);
+        int msgidx = 0;
+        auto* msg_proto = find_message(file_proto_, needle, &msgidx);
+        visit_tree<MessageVisitor>(c, msg_proto, msgidx, file_proto_);
 
         if (comment.size() > 0) {
           msg_proto->mutable_options()
               ->MutableExtension(google::protobuf::ProtostructMessageOptions::
                                      protostruct_options)
               ->set_protostruct_comment(comment);
+
+          //  message_Type is field #4 within FileDescriptorProto
+          auto* location = find_location(file_proto_, {4, msgidx});
+          std::string stripped_comment = strip_comment_prefix(comment);
+          location->set_leading_comments(stripped_comment);
         }
         return CXChildVisit_Continue;
       }
@@ -834,51 +966,78 @@ int compile_main(const ProgramOptions& popts) {
           google::protobuf::ProtostructFileOptions::protostruct_options)
       ->set_header_filepath(popts.source_filepath);
 
-  CXIndex index = clang_createIndex(0, 0);
-  CXTranslationUnit tunit{};
+  if (!stringutil::endswith(popts.source_filepath, ".proto")) {
+    CXIndex index = clang_createIndex(0, 0);
+    CXTranslationUnit tunit{};
 
-  std::vector<const char*> clang_argv;
-  clang_argv.reserve(popts.clang_options.size() + 10);
-  for (const auto& arg : popts.clang_options) {
-    clang_argv.push_back(&arg[0]);
-  }
-
-  // TODO(josh): don't bake these here.
-  // needed for bool, consider also "-std=c99", "-language=c",
-  clang_argv.push_back("-std=c++11");
-  clang_argv.push_back("-language=c++");
-
-  CXErrorCode code = clang_parseTranslationUnit2(
-      index, popts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
-      nullptr, 0, CXTranslationUnit_None, &tunit);
-  if (code != CXError_Success) {
-    std::cerr << "Failed to build translation unit, argv:";
-    for (const char* arg : clang_argv) {
-      std::cerr << " " << arg;
-    }
-    std::cerr << "\n";
-
-    for (size_t idx = 0; idx < clang_getNumDiagnostics(tunit); idx++) {
-      CXDiagnostic diag = clang_getDiagnostic(tunit, idx);
-      std::cerr << clang_getDiagnosticSpelling(diag);
-      clang_disposeDiagnostic(diag);
+    std::vector<const char*> clang_argv;
+    clang_argv.reserve(popts.clang_options.size() + 10);
+    for (const auto& arg : popts.clang_options) {
+      clang_argv.push_back(&arg[0]);
     }
 
-    exit(1);
+    // TODO(josh): don't bake these here.
+    // needed for bool, consider also "-std=c99", "-language=c",
+    clang_argv.push_back("-std=c++11");
+    clang_argv.push_back("-language=c++");
+
+    CXErrorCode code = clang_parseTranslationUnit2(
+        index, popts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
+        nullptr, 0, CXTranslationUnit_None, &tunit);
+    if (code != CXError_Success) {
+      std::cerr << "Failed to build translation unit, argv:";
+      for (const char* arg : clang_argv) {
+        std::cerr << " " << arg;
+      }
+      std::cerr << "\n";
+
+      for (size_t idx = 0; idx < clang_getNumDiagnostics(tunit); idx++) {
+        CXDiagnostic diag = clang_getDiagnostic(tunit, idx);
+        std::cerr << clang_getDiagnosticSpelling(diag);
+        clang_disposeDiagnostic(diag);
+      }
+
+      exit(1);
+    }
+
+    CXFile file_of_interest =
+        clang_getFile(tunit, popts.source_filepath.c_str());
+    process_file(tunit, file_of_interest, &fileproto);
+
+    clang_disposeTranslationUnit(tunit);
+    clang_disposeIndex(index);
   }
 
-  CXFile file_of_interest = clang_getFile(tunit, popts.source_filepath.c_str());
-  process_file(tunit, file_of_interest, &fileproto);
-
-  clang_disposeTranslationUnit(tunit);
-  clang_disposeIndex(index);
-
-  // NOTE(josh): how to get a FileDescriptor from the FileDescriptorProto
-  // google::protobuf::DescriptorPool dpool{importer.pool()};
-  // proto_file = dpool.BuildFile(fileproto);
+  // NOTE(josh): See below as an example of how to get a FileDescriptor from
+  // the FileDescriptorProto and how to access comments.
+  // google::protobuf::DescriptorPool dpool{};
+  // const google::protobuf::FileDescriptor* proto_file =
+  //     dpool.BuildFile(fileproto);
   // if (!proto_file) {
   //   exit(1);
   // }
+
+  // for (int idx = 0; idx < proto_file->message_type_count(); idx++) {
+  //   google::protobuf::SourceLocation loc{};
+  //   proto_file->message_type(idx)->GetSourceLocation(&loc);
+
+  //   LOG(WARNING) << loc.leading_comments << "\n";
+  //   LOG(WARNING) << loc.trailing_comments << "\n";
+  //   for (auto comment : loc.leading_detached_comments) {
+  //     LOG(WARNING) << comment << "\n";
+  //   }
+
+  //   for (int jdx = 0; jdx < proto_file->message_type(idx)->field_count();
+  //        jdx++) {
+  //     proto_file->message_type(idx)->field(jdx)->GetSourceLocation(&loc);
+  //     LOG(WARNING) << loc.leading_comments << "\n";
+  //     LOG(WARNING) << loc.trailing_comments << "\n";
+  //     for (auto comment : loc.leading_detached_comments) {
+  //       LOG(WARNING) << comment << "\n";
+  //     }
+  //   }
+  // }
+
   std::ofstream outfile{popts.output_filepath};
   if (!outfile.good()) {
     LOG(FATAL) << "Failed to open " << popts.output_filepath << " for write";
@@ -930,6 +1089,12 @@ int gen_main(const ProgramOptions& popts) {
                                        widen(popts.proto_out),
                                        L"--cpp-out",
                                        widen(popts.cpp_out)};
+  if (!popts.only_list.empty()) {
+    my_args.emplace_back(L"--only");
+    for (auto only : popts.only_list) {
+      my_args.emplace_back(widen(only));
+    }
+  }
   int my_argc = my_args.size();
 
   // NOTE(josh): must include an additional null entry to terminate the array

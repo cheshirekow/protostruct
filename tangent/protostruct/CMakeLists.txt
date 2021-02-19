@@ -84,6 +84,8 @@ add_custom_command(
          ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
   DEPENDS gen.py
           make_pyzip.py
+          templates/XXX-simple.h.jinja2
+          templates/XXX-simple.cc.jinja2
           templates/XXX.cereal.h.jinja2
           templates/XXX.pbwire.c.jinja2
           templates/XXX.pbwire.h.jinja2
@@ -278,7 +280,9 @@ add_custom_command(
 
 # generate code from .pb3
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
+         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
@@ -295,6 +299,8 @@ add_custom_command(
     # cmake-format: on
   COMMAND
     clang-format-8 -i -style=File
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
@@ -324,8 +330,20 @@ cc_library(
   DEPS cereal pbwire)
 target_include_directories(test-messages PUBLIC ${CMAKE_BINARY_DIR})
 
+cc_library(
+  test-messages-simple
+  SRCS ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
+       ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
+  DEPS tjson tjson-cpp)
+target_include_directories(test-messages PUBLIC ${CMAKE_BINARY_DIR})
+
 cc_test(
   protostruct-devtest3
   SRCS devtest.cc
   DEPS cereal gtest gtest_main test-messages
   PKGDEPS protobuf)
+
+cc_test(
+  protostruct-simplecpp-test
+  SRCS simple-cpp-test.cc
+  DEPS test-messages-simple gtest gtest_main)

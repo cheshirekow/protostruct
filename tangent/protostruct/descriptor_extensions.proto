@@ -4,6 +4,8 @@ import "google/protobuf/descriptor.proto";
 
 package google.protobuf;
 
+
+
 message ProtostructFileOptions {
   extend FileOptions {
     optional ProtostructFileOptions protostruct_options = 83111;

@@ -1,0 +1,107 @@
+#include "{{include_base}}-simple.h"
+
+#include "tangent/tjson/cpputil.h"
+#include "tangent/tjson/parse.h"
+#include "tangent/util/exception.h"
+#include "tangent/util/hash.h"
+#include "tangent/util/stringutil.h"
+
+{% if filedescr.package %}
+{% for ns in filedescr.package.split(".") %}
+namespace {{ns}} {
+{% endfor %}
+{% endif %}
+
+
+{% for enumdescr in filedescr.enum_type %}
+int parse_json(const std::string& json_str, {{enumdescr.name}}* value){
+  switch(tangent::runtime_suci_hash(json_str)){
+  {% for valuedescr in enumdescr.value %}
+    case tangent::suci_hash("{{valuedescr.name}}"):
+      *value = {{valuedescr.name}};
+      return 0;
+  {% endfor %}
+    default:
+        break;
+  }
+  return 1;
+}
+
+tjson::OStream& operator<<(tjson::OStream& out, const {{enumdescr.name}}& value){
+  switch(value){
+  {% for valuedescr in enumdescr.value %}
+    case {{valuedescr.name}}:
+      out << "{{valuedescr.name}}";
+      return out;
+  {% endfor %}
+    default:
+       break;
+  }
+  return out;
+}
+
+{% endfor %}
+{% for descr in filedescr.message_type %}
+
+std::string {{descr.name}}::to_json(){
+  tjson::OSStream strm{};
+  strm << *this;
+  return strm.str();
+}
+
+void {{descr.name}}::parse_json(const std::string& json_str){
+  return tjson::parse_json(json_str, this);
+}
+
+tjson::OStream& operator<<(tjson::OStream& out, const {{descr.name}}& value){
+  tjson::Guard guard{&out, tjson::OBJECT};
+  {% for fielddescr in descr.field %}
+    out << "{{fielddescr.name}}" << value.{{fielddescr.name}};
+  {% endfor %}
+  return out;
+}
+
+{% endfor %}
+
+{% if filedescr.package %}
+{% for ns in filedescr.package.split(".") %}
+}  // namespace {{ns}}
+{% endfor %}
+{% endif %}
+
+
+
+namespace tjson {
+
+{% for enumdescr in filedescr.enum_type %}
+int parse(tjson_ParseContext ctx, {{fqn_typename_cpp(enumdescr)}}* value){
+  std::string str{};
+  int err = tjson::parse(ctx, &str);
+  if(err) {
+    return err;}
+  return {{get_cpp_namespace()}}::parse_json(str, value);
+}
+{% endfor %}
+
+{% for descr in filedescr.message_type %}
+
+
+static int {{descr.name}}_fielditem_callback(
+    void* pobj, tjson_ParseContext ctx, tjson_StringPiece fieldname) {
+    auto* obj = reinterpret_cast<{{fqn_typename_cpp(descr)}}*>(pobj);
+    switch (tjson_StringPiece_suci_digest(fieldname)) {
+      {% for fielddescr in descr.field %}
+      case tangent::suci_hash("{{fielddescr.name}}"):
+        return tjson::parse(ctx, &obj->{{fielddescr.name}});
+      {% endfor %}
+    }
+    return 0;
+}
+
+int parse(tjson_ParseContext ctx, {{fqn_typename_cpp(descr)}}* value){
+  return tjson_parse_object(ctx, {{descr.name}}_fielditem_callback, value);
+}
+{% endfor %}
+
+
+} // namespace tjson

@@ -800,3 +800,93 @@ cc_library(
   deps = [":libpng16"],
   visibility = ["//visibility:public"],
 )
+
+cc_library(
+  name = "libcrypto",
+  hdrs = [],
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libcrypto.so.1.0.0",
+    "usr/lib/x86_64-linux-gnu/libcrypto.so.1.1",
+    "usr/lib/x86_64-linux-gnu/libcrypto.a",
+    "usr/lib/x86_64-linux-gnu/libcrypto.so",
+  ],
+  includes = ["usr/include"],
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "libssl",
+  hdrs = [],
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libssl.so.1.0.0",
+    "usr/lib/x86_64-linux-gnu/libssl3.so",
+    "usr/lib/x86_64-linux-gnu/libssl.so",
+    "usr/lib/x86_64-linux-gnu/libssl.so.1.1",
+    "usr/lib/x86_64-linux-gnu/libssl.a",
+  ],
+  includes = ["usr/include"],
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "libgssapi",
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libgssapi.so.3",
+    "usr/lib/x86_64-linux-gnu/libgssapi.so.3.0.0",
+    "usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2",
+    "usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2.2",
+  ],
+  includes = ["usr/include"],
+  visibility = ["//visibility:public"],
+)
+
+cc_library(
+  name = "libssh",
+  hdrs = [
+    "usr/include/libssh/legacy.h",
+    "usr/include/libssh/libssh.h",
+    "usr/include/libssh/libsshpp.hpp",
+    "usr/include/libssh/server.h",
+    "usr/include/libssh/sftp.h",
+    "usr/include/libssh/ssh2.h",
+  ],
+  includes = ["usr/include"],
+  visibility = ["//visibility:public"],
+  deps = [":libcrypto", ":libssl", ":libgssapi"],
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libssh.so.4.5.0",
+    "usr/lib/x86_64-linux-gnu/libssh.so.4",
+    "usr/lib/x86_64-linux-gnu/libssh.so",
+    "usr/lib/x86_64-linux-gnu/libssh.a",
+  ],
+)
+
+cc_library(
+  name = "libssh_threads",
+  hdrs = ["usr/include/libssh/callbacks.h"],
+  visibility = ["//visibility:public"],
+  includes = ["usr/include"],
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4.5.0",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.a",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so",
+  ],
+)
+
+cc_library(
+  name = "librsvg-2.0",
+  includes = ["usr/include/librsvg-2.0"],
+  visibility = ["//visibility:public"],
+  hdrs = [
+    "usr/include/librsvg-2.0/librsvg/rsvg.h",
+    "usr/include/librsvg-2.0/librsvg/librsvg-enum-types.h",
+    "usr/include/librsvg-2.0/librsvg/librsvg-features.h",
+    "usr/include/librsvg-2.0/librsvg/rsvg-cairo.h",
+  ],
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/librsvg-2.so.2.40.20",
+    "usr/lib/x86_64-linux-gnu/librsvg-2.so.2",
+    "usr/lib/x86_64-linux-gnu/librsvg-2.so",
+  ],
+)

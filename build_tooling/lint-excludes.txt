@@ -33,6 +33,8 @@ tangent/json/test/test_types.*
 # conforms to cereal conventions, which don't satisfy cpplint
 tangent/protostruct/cereal_utils.h
 tangent/protostruct/descriptor_extensions_pb2.py
+tangent/protostruct/test/test_messages-simple.h
+tangent/protostruct/test/test_messages-simple.cc
 tangent/protostruct/test/test_messages.cereal.h
 tangent/protostruct/test/test_messages.pb.h
 tangent/protostruct/test/test_messages.pb.cc

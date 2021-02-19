@@ -4,6 +4,7 @@ Protostruct code generator
 
 import argparse
 import io
+import logging
 import os
 import sys
 import zipfile
@@ -13,6 +14,8 @@ from google.protobuf import descriptor_pb2
 
 from tangent import protostruct
 from tangent.protostruct import descriptor_extensions_pb2
+
+logger = logging.getLogger(__name__)
 
 
 class ZipfileLoader(jinja2.BaseLoader):
@@ -67,6 +70,10 @@ def setup_argparse(argparser):
   argparser.add_argument(
       "--cpp-out", "--cpp_out",
       help="root of the source tree where to emit files")
+  argparser.add_argument(
+      "--only", nargs="+",
+      help="Only generate a specific set of outputs",
+      choices=TEMPLATES.keys())
 
 
 def get_proto_typename(typeid):
@@ -87,6 +94,27 @@ def get_proto_typename(typeid):
       proto.TYPE_STRING: "string",
       proto.TYPE_UINT32: "uint32",
       proto.TYPE_UINT64: "uint64",
+  }[typeid]
+
+
+def get_simple_cpp_typename(typeid):
+  proto = descriptor_pb2.FieldDescriptorProto
+  return {
+      proto.TYPE_BOOL: "bool",
+      proto.TYPE_BYTES: "std::vector<uint8_t>",
+      proto.TYPE_DOUBLE: "double",
+      proto.TYPE_FIXED32: "int32_t",
+      proto.TYPE_FIXED64: "int64_t",
+      proto.TYPE_FLOAT: "float",
+      proto.TYPE_INT32: "int32_t",
+      proto.TYPE_INT64: "int64_t",
+      proto.TYPE_SFIXED32: "int32_t",
+      proto.TYPE_SFIXED64: "int32_t",
+      proto.TYPE_SINT32: "int32_t",
+      proto.TYPE_SINT64: "int64_t",
+      proto.TYPE_STRING: "std::string",
+      proto.TYPE_UINT32: "uint32_t",
+      proto.TYPE_UINT64: "uint64_t",
   }[typeid]
 
 
@@ -128,15 +156,23 @@ def get_packed_tag(fielddescr):
   return (fielddescr.number << 3) | 2
 
 
-def get_enum_columns(enums):
-  maxnamelen = 0
-  maxnumlen = 0
+def get_enum_columns(enums, style=None):
+  """Return a format string used for each enum value declaration in a .proto
+     file. The format string is something like '{:6s} = {:12s};' but the
+     field widths are computed according to ."""
 
-  for enumdescr in enums:
-    maxnamelen = max(maxnamelen, len(enumdescr.name))
-    maxnumlen = max(maxnumlen, len("{}".format(enumdescr.number)))
+  if style is None:
+    style = "proto"
 
-  return "{:%ds} = {:%dd};" % (maxnamelen, maxnumlen)
+  maxnamelen = max(len(enumdescr.name) for enumdescr in enums)
+  maxnumlen = max(len("{}".format(enumdescr.number)) for enumdescr in enums)
+
+  style = style.lower()
+  if style == "proto":
+    return "{:%ds} = {:%dd}" % (maxnamelen, maxnumlen)
+  if style in ("c", "cpp"):
+    return "{:%ds} = {:%dd}" % (maxnamelen, maxnumlen)
+  raise ValueError("Unexpected style: {}".format(style))
 
 
 def get_protostruct_options(descr):
@@ -196,17 +232,6 @@ def get_protostruct_options(descr):
         .protostruct_options]
 
   return None
-
-
-def get_comment(descr):
-  options = get_protostruct_options(descr)
-  if options is None:
-    return ""
-
-  if not options.HasField("protostruct_comment"):
-    return ""
-
-  return options.protostruct_comment
 
 
 def get_lengthfield(descr):
@@ -332,16 +357,37 @@ def is_enum(fielddescr):
   return fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_ENUM
 
 
+def format_leading_comment(commentstr, style):
+  lines = commentstr.strip().split("\n")
+  if style == "cpp":
+    return "/// " + "/// ".join(lines)
+  raise ValueError("Unknown style {}".format(style))
+
+
+def format_trailing_comment(commentstr, style):
+  lines = commentstr.strip().split("\n")
+  if style == "cpp":
+    return "//!< " + "//!< ".join(lines)
+  raise ValueError("Unknown style {}".format(style))
+
+
 class TemplateContext(object):
   def __init__(self, filedescr):
     self.filedescr = filedescr
+
+  def get_cpp_namespace(self):
+    name_parts = self.filedescr.package.strip(".").split(".")
+    return "::".join(name_parts)
 
   def fqn_typename_cpp(self, descr):
     name_parts = self.filedescr.package.strip(".").split(".")
     name_parts.append(descr.name)
     return "::".join(name_parts)
 
-  def canonicalize_typename(self, typename):
+  def canonicalize_typename(self, typename, style=None):
+    if style is None:
+      style = "proto"
+
     package_parts = self.filedescr.package.strip(".").split(".")
     typename_parts = typename.strip(".").split(".")
 
@@ -350,16 +396,29 @@ class TemplateContext(object):
       package_parts.pop(0)
       typename_parts.pop(0)
 
-    return ".".join(typename_parts)
+    if style == "proto":
+      return ".".join(typename_parts)
+    if style == "cpp":
+      return "::".join(typename_parts)
+    raise ValueError("Unknown style: %s" % style)
 
-  def get_typename(self, fielddescr):
+  def get_typename(self, fielddescr, style=None):
+    if style is None:
+      style = "proto"
+
+    if (not fielddescr.HasField("type")
+        or fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE):
+      return self.canonicalize_typename(fielddescr.type_name, style)
+
     if fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_ENUM:
-      return self.canonicalize_typename(fielddescr.type_name)
+      return self.canonicalize_typename(fielddescr.type_name, style)
 
-    if fielddescr.type == descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE:
-      return self.canonicalize_typename(fielddescr.type_name)
+    if style == "proto":
+      return get_proto_typename(fielddescr.type)
+    if style == "cpp":
+      return get_simple_cpp_typename(fielddescr.type)
 
-    return get_proto_typename(fielddescr.type)
+    raise ValueError("Unknown style %s" % style)
 
   def get_emit_fun(self, fielddescr, passno=None):
     """Return the name of the emit function for a single value of the given
@@ -370,40 +429,118 @@ class TemplateContext(object):
 
     return "_pbemit{}_".format(passno) + self.get_typename(fielddescr)
 
-  def tuplize_fielddescr(self, fielddescr):
-    return (
-        get_label(fielddescr),
-        self.get_typename(fielddescr),
-        fielddescr.name,
-        fielddescr.number,
-        get_options(fielddescr),
-        get_comment(fielddescr))
+  def get_sourcecodeinfo_location(self, query_path):
+    if not self.filedescr.HasField("source_code_info"):
+      return None
 
-  def get_field_columns(self, fields):
-    lengths = [0] * 6
+    for location in self.filedescr.source_code_info.location:
+      if location.path == query_path:
+        return location
+    return None
+
+  def get_leading_comment(self, query_path, style):
+    """Lookup a comment py source code location path within the
+       filedescriptor."""
+    location = self.get_sourcecodeinfo_location(query_path)
+    if location is None:
+      return ""
+
+    if location.leading_comments:
+      return format_leading_comment(location.leading_comments, style)
+    return ""
+
+  def get_trailing_comment(self, query_path, style):
+    """Lookup a comment py source code location path within the
+       filedescriptor."""
+    location = self.get_sourcecodeinfo_location(query_path)
+    if location is None:
+      return ""
+
+    if location.trailing_comments:
+      return format_trailing_comment(location.trailing_comments, style)
+    return ""
+
+  def get_comment(self, descr):
+    """Lookup the protostruct extension fields, if the exist, and retrieve
+      any comments from them."""
+    options = get_protostruct_options(descr)
+    if options is None:
+      return ""
+
+    if not options.HasField("protostruct_comment"):
+      return ""
+
+    return options.protostruct_comment
+
+  def tuplize_fielddescr(self, fielddescr, style=None):
+    if style is None:
+      style = "proto"
+    if style == "proto":
+      return (
+          get_label(fielddescr),
+          self.get_typename(fielddescr, style),
+          fielddescr.name,
+          fielddescr.number,
+          get_options(fielddescr),
+          self.get_comment(fielddescr))
+    if style == "cpp":
+      return (
+          self.get_typename(fielddescr, style),
+          fielddescr.name,
+          self.get_comment(fielddescr))
+    raise ValueError("Unknown style: %s" % style)
+
+  def accumulate_fieldlengths(self, fields, style):
+    """Go through each field descriptor and get format each item in the
+    descriptor as a string. Get the length of that string, and accumulate
+    the max of these lengths over all descriptors. Return a list of these
+    accumulated lengths. `out[idx]` contains the length of the largest
+    string for item `idx` in the field descriptors."""
+    lengths = [0] * 10
 
     for fielddescr in fields:
       lengths = [
           max(maxlen, len("{}".format(item))) for maxlen, item
-          in zip(lengths, self.tuplize_fielddescr(fielddescr))]
+          in zip(lengths, self.tuplize_fielddescr(fielddescr, style))]
 
+    return lengths
+
+  def get_field_columns(self, fields, style=None):
+    """Return a format string that looks something like
+    `"{:8d} {:>12s} {:6s} = {:3d};"` suitable for formatting a proto
+    field declaration like `"repeated FooMessage foo_field =  12;"` with
+    fixed columns.
+    """
+    if style is None:
+      style = "proto"
+
+    lengths = self.accumulate_fieldlengths(fields, style)
     format_parts = []
 
-    # label, e.g. "repeated"
-    if lengths[0]:
-      format_parts.append("{:%ds} " % lengths[0])
-    else:
+    if style == "proto":
+      # label, e.g. "repeated"
+      if lengths[0]:
+        format_parts.append("{:%ds} " % lengths[0])
+      else:
+        format_parts.append("{}")
+
+      # <type> <name> = <number>
+      format_parts.append("{:>%ds} {:%ds} = {:%dd}" % tuple(lengths[1:4]))
+
+      # options, e.g. [packed=true]
       format_parts.append("{}")
 
-    # <type> <name> = <number>
-    format_parts.append("{:>%ds} {:%ds} = {:%dd}" % tuple(lengths[1:4]))
+    elif style == "cpp":
+      # <type> <name>;
+      format_parts.append("{:>%ds} {:%ds}" % tuple(lengths[0:2]))
 
-    # options, e.g. [packed=true]
-    format_parts.append("{}")
+    else:
+      raise ValueError("Unknown style: %s" % style)
+
     format_parts.append(";")
 
     # comments
-    if lengths[5]:
+    if lengths[-1]:
       format_parts.append("  {}")
     else:
       format_parts.append("{}")
@@ -421,6 +558,17 @@ def format_reserved(ranges):
     else:
       out.append("{} to {}".format(rrange.start, rrange.end - 1))
   return ", ".join(out)
+
+
+# Map a named group of functionality to a set of templates that implement
+# that functionality
+TEMPLATES = {
+    "proto": [".proto"],
+    "cereal": [".cereal.h"],
+    "pbwire": [".pbwire.h", ".pbwire.c"],
+    "pb2c": [".pb2c.h", ".pb2c.cc"],
+    "cpp-simple": ["-simple.h", "-simple.cc"]
+}
 
 
 def main():
@@ -452,10 +600,13 @@ def main():
 
   ctx = TemplateContext(filedescr)
   jenv.globals.update(
+      enumerate=enumerate,
+      ctx=ctx,
       format_reserved=format_reserved,
       fqn_typename_cpp=ctx.fqn_typename_cpp,
       get_arraysize=get_arraysize,
-      get_comment=get_comment,
+      get_comment=ctx.get_comment,
+      get_cpp_namespace=ctx.get_cpp_namespace,
       get_emit_fun=ctx.get_emit_fun,
       get_enum_columns=get_enum_columns,
       get_header_filepath=get_header_filepath,
@@ -481,10 +632,15 @@ def main():
   relpath_outdir = "/".join(gensource.split("/")[:-1])
   basename = gensource.split("/")[-1].split(".")[0]
 
+  if not args.only:
+    args.only = TEMPLATES.keys()
+
+  suffixes = []
+  for group in args.only:
+    suffixes.extend(TEMPLATES[group])
+
   process_pairs = []
-  for suffix in [
-      ".proto", ".cereal.h", ".pbwire.h", ".pbwire.c", ".pb2c.h", ".pb2c.cc"
-    ]:
+  for suffix in suffixes:
     outfile_name = basename + suffix
     if suffix.endswith(".proto"):
       outfile_dir = os.path.join(args.proto_out, relpath_outdir)

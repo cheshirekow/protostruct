@@ -597,3 +597,97 @@ function(tangent_verify_image target_prefix imgfile reference_hash)
     WORKING_DIRECTORY ${args_WORKING_DIRECTORY}
     LABELS ${args_LABELS})
 endfunction()
+
+# Copy a file from the source tree to the binary tree
+function(copybin target)
+  unset(_copyfiles)
+  foreach(filename ${ARGN})
+    if(NOT "${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
+      add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${filename}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${filename}
+        COMMAND
+          ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/${filename}
+          ${CMAKE_CURRENT_BINARY_DIR}/${filename})
+      list(APPEND _copyfiles ${CMAKE_CURRENT_BINARY_DIR}/${filename})
+    endif()
+  endforeach()
+  add_custom_target(${target} DEPENDS ${_copyfiles})
+endfunction()
+
+# Generate .h and .c resource data to embed in an application
+function(gresource args_BASENAME args_XMLFILE)
+  cmake_parse_arguments(args "" "SRCDIR" "DEPENDS" ${ARGN})
+
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${args_BASENAME}.h
+    DEPENDS ${args_XMLFILE} ${args_DEPENDS}
+    COMMAND
+      glib-compile-resources --sourcedir=${args_SRCDIR} --generate
+      ${CMAKE_CURRENT_SOURCE_DIR}/${args_XMLFILE} --target=${args_BASENAME}.h)
+
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${args_BASENAME}.c
+    DEPENDS ${args_XMLFILE} ${args_DEPENDS}
+    COMMAND
+      glib-compile-resources --sourcedir=${args_SRCDIR} --generate
+      ${CMAKE_CURRENT_SOURCE_DIR}/${args_XMLFILE} --target=${args_BASENAME}.c)
+endfunction()
+
+# Use inkscape to extract a subset of an SVG into it's own SVG file. This is
+# useful for working on multiple icons in a single SVG and then splitting them
+# into separate SVGs at build time
+function(tangent_extract_svg)
+  cmake_parse_arguments(args "" "OUTPUT;SRC;EXPORT" "" ${ARGN})
+  add_custom_command(
+    OUTPUT ${args_OUTPUT}
+    DEPENDS icons.svg
+    # NOTE(josh): rsvg is completely broken COMMAND rsvg-convert
+    # --export-id="${args_EXPORT}" --format=svg --output ${args_OUTPUT}
+    # ${args_SRC}
+    COMMAND inkscape "--export-plain-svg=${args_OUTPUT}"
+            "--export-id=${args_EXPORT}" --export-id-only ${args_SRC})
+endfunction()
+
+function(protostruct_gen args_PROTO)
+  cmake_parse_arguments(args "" "" "ONLY" ${ARGN})
+
+  if(NOT ${args_PROTO} MATCHES "(.*).proto")
+    message(FATAL_ERROR "invalid protofile ${args_PROTO}")
+  endif()
+  set(basename ${CMAKE_MATCH_1})
+
+  unset(outs)
+  unset(only_flags)
+  if(args_ONLY)
+    set(only_flags "--only" ${args_ONLY})
+    foreach(groupname ${args_ONLY})
+      if(groupname STREQUAL "cpp-simple")
+        list(APPEND outs #
+             ${CMAKE_CURRENT_BINARY_DIR}/${basename}-simple.h
+             ${CMAKE_CURRENT_BINARY_DIR}/${basename}-simple.cc)
+      else()
+        message(FATAL_ERROR "protostruct_gen not implemented for ${groupname}")
+      endif()
+    endforeach()
+  else()
+    message(FATAL_ERROR "protostruct_gen not implemented without ONLY")
+  endif()
+
+  add_custom_command(
+    OUTPUT ${outs}
+    DEPENDS ${args_PROTO} protostruct
+    COMMAND
+      # cmake-format: off
+      $<TARGET_FILE:protostruct>
+      ${args_PROTO}
+      --proto-path ${CMAKE_CURRENT_SOURCE_DIR}
+      --outfile ${CMAKE_CURRENT_BINARY_DIR}/${basename}.pb3
+      --cpp-out ${CMAKE_CURRENT_BINARY_DIR}
+      ${only_flags}
+      # cmake-format: on
+    COMMAND # cmake-format: off
+      clang-format-8 -i -style=File ${outs}
+      # cmake-format: on
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endfunction()

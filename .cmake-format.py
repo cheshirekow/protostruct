@@ -121,6 +121,14 @@ with section("parse"):
       ]
     },
 
+    "gresource" : {
+      "pargs": 2,
+      "kwargs": {
+        "SRCDIR": 1,
+        "DEPENDS": "+",
+      }
+    },
+
     "join": {
       "pargs": [1, "+"],
       "kwargs": {
@@ -222,6 +230,14 @@ with section("parse"):
         "SOURCEDIR": 1,
         "FILES": "*"
       },
+    },
+
+    "tangent_extract_svg": {
+      "kwargs": {
+        "OUTPUT": 1,
+        "SRC": 1,
+        "EXPORT": 1,
+      }
     },
 
     "tangent_fetchobj": {
