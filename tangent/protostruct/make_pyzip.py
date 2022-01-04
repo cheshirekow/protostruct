@@ -11,7 +11,7 @@ import six
 from tangent import protostruct
 
 
-def get_manifest():
+def get_manifest(bindir):
   manifest = []
 
   manifest.append((argparse.__file__, "argparse.py"))
@@ -45,6 +45,9 @@ def get_manifest():
         manifest.append((
             os.path.join(parent, filename),
             os.path.join(package.__name__.replace(".", "/"), reldir, filename)))
+
+  extensions_pb = "tangent/protostruct/descriptor_extensions_pb2.py"
+  manifest.append((os.path.join(bindir, extensions_pb), extensions_pb))
   return manifest
 
 
@@ -56,10 +59,12 @@ def main():
   parser.add_argument(
       "-m", "--main",
       help="path to the output file to create")
+  parser.add_argument(
+      "-b", "--bin-dir", help="path to the binary directory")
   args = parser.parse_args()
 
   with zipfile.ZipFile(args.outfile, "w") as outfile:
-    for srcpath, dstpath in get_manifest():
+    for srcpath, dstpath in get_manifest(args.bin_dir):
       outfile.write(srcpath, dstpath)
     outfile.writestr("google/__init__.py", "")
     outfile.writestr("tangent/__init__.py", "")

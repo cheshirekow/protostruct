@@ -14,66 +14,12 @@ add_custom_command(
          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.cc
          # TODO(josh): figure out how to deal with python path so that this can
          # go in the binary tree
-         ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
+         ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
   DEPENDS descriptor_extensions.proto
   COMMAND
     protoc --proto_path=${CMAKE_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions.proto
-    --cpp_out=${CMAKE_BINARY_DIR} --python_out=${CMAKE_SOURCE_DIR})
-
-# ============================================
-# Get python interpreter library configuration
-# ============================================
-# TODO(josh): dedup with pybin
-
-find_program(_python_config NAMES python3-config python-config)
-find_program(_python NAMES python3 python)
-
-check_call(
-  COMMAND ${_python_config} --cflags
-  OUTPUT_VARIABLE _pydev_cflags_raw
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(REGEX REPLACE " +" ";" _pydev_cflags_raw "${_pydev_cflags_raw}")
-unset(_pydev_cflags)
-foreach(cflag ${_pydev_cflags_raw})
-  if("${cflag}" MATCHES "-(I|(isystem)|(iquote)).*")
-    # pass
-  elseif("${cflag}" MATCHES "-isystem.*")
-    # pass
-  else()
-    list(APPEND _pydev_cflags)
-  endif()
-endforeach()
-
-check_call(
-  COMMAND ${_python_config} --includes
-  OUTPUT_VARIABLE _pydev_includes
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(REGEX REPLACE " +" ";" _pydev_includes "${_pydev_includes}")
-string(REGEX REPLACE "-I" "" _pydev_includes "${_pydev_includes}")
-
-check_call(
-  COMMAND ${_python_config} --ldflags
-  OUTPUT_VARIABLE _pydev_ldflags_raw
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(REGEX REPLACE " +" ";" _pydev_ldflags_raw "${_pydev_ldflags_raw}")
-unset(_pydev_libdirs)
-unset(_pydev_ldflags)
-foreach(ldflag ${_pydev_ldflags_raw})
-  if("${ldflag}" MATCHES "-L.*")
-    list(APPEND _pydev_libdirs "${ldflag}")
-  elseif("${ldflag}" MATCHES "-l.*")
-    # pass
-  else()
-    list(APPEND _pydev_ldflags)
-  endif()
-endforeach()
-
-check_call(
-  COMMAND ${_python_config} --libs
-  OUTPUT_VARIABLE _pydev_libs
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
-string(REGEX REPLACE " +" ";" _pydev_libs "${_pydev_libs}")
+    --cpp_out=${CMAKE_BINARY_DIR} --python_out=${CMAKE_BINARY_DIR})
 
 # =================================
 # zip up protostruct python package
@@ -92,11 +38,11 @@ add_custom_command(
           templates/XXX.pb2c.cc.jinja2
           templates/XXX.pb2c.h.jinja2
           templates/XXX.proto.jinja2
-          ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
+          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
   COMMAND
-    ${_python} -Bm tangent.protostruct.make_pyzip -o
+    $<TARGET_FILE:Python::Interpreter> -Bm tangent.protostruct.make_pyzip -o
     ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip -m
-    ${CMAKE_CURRENT_SOURCE_DIR}/gen.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen.py -b ${CMAKE_BINARY_DIR}
   # NOTE(josh): cmake really sucks! There is no way to add a file-level
   # dependency between the protostruct `add_executable` and this .zip file... so
   # we have to generate a stub .cc file just so we can depend on it in the
@@ -118,10 +64,9 @@ cc_binary(
   SRCS protostruct-main.cc
        ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.cc
        ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
-  INC PRIVATE ${_pydev_includes}
-  LIBDIRS PRIVATE ${_pydev_libdirs}
-  DEPS argue tangent::util libclang ${_pydev_libs}
-  PKGDEPS libglog protobuf)
+  DEPS argue tangent::util libclang Python::Embed
+  PKGDEPS libglog protobuf
+  PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(protostruct PUBLIC ${CLANG_INCLUDE_DIRS}
                                               ${CMAKE_BINARY_DIR})
@@ -268,7 +213,7 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
   DEPENDS protostruct ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.h
           ${CMAKE_CURRENT_SOURCE_DIR}/test/test_in.proto
-          ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
+          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
   COMMAND
     $<TARGET_FILE:protostruct> tangent/protostruct/test/test_messages.h #
     --step compile #
@@ -289,7 +234,7 @@ add_custom_command(
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.cc
   DEPENDS protostruct ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
-          ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions_pb2.py
+          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
   COMMAND
     # cmake-format: off
     $<TARGET_FILE:protostruct> --step gen #
@@ -298,7 +243,7 @@ add_custom_command(
     --cpp-out ${CMAKE_SOURCE_DIR}
     # cmake-format: on
   COMMAND
-    clang-format-8 -i -style=File
+    ${_clang_format} -i -style=File
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
@@ -342,8 +287,3 @@ cc_test(
   SRCS devtest.cc
   DEPS cereal gtest gtest_main test-messages
   PKGDEPS protobuf)
-
-cc_test(
-  protostruct-simplecpp-test
-  SRCS simple-cpp-test.cc
-  DEPS test-messages-simple gtest gtest_main)

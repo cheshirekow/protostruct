@@ -837,6 +837,19 @@ cc_library(
 )
 
 cc_library(
+  name = "libssh_threads",
+  hdrs = ["usr/include/libssh/callbacks.h"],
+  visibility = ["//visibility:public"],
+  includes = ["usr/include"],
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4.4.1",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.a",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so",
+  ],
+)
+
+cc_library(
   name = "libssh",
   hdrs = [
     "usr/include/libssh/legacy.h",
@@ -847,25 +860,12 @@ cc_library(
   ],
   includes = ["usr/include"],
   visibility = ["//visibility:public"],
-  deps = [":libcrypto", ":libssl", ":libgssapi"],
+  deps = [":libcrypto", ":libssl", ":libgssapi", ":libssh_threads"],
   srcs = [
     "usr/lib/x86_64-linux-gnu/libssh.so.4.4.1",
     "usr/lib/x86_64-linux-gnu/libssh.so.4",
     "usr/lib/x86_64-linux-gnu/libssh.a",
     "usr/lib/x86_64-linux-gnu/libssh.so",
-  ],
-)
-
-cc_library(
-  name = "libssh_threads",
-  hdrs = ["usr/include/libssh/callbacks.h"],
-  visibility = ["//visibility:public"],
-  includes = ["usr/include"],
-  srcs = [
-    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4.4.1",
-    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4",
-    "usr/lib/x86_64-linux-gnu/libssh_threads.a",
-    "usr/lib/x86_64-linux-gnu/libssh_threads.so",
   ],
 )
 

@@ -19,9 +19,11 @@ find_package(Clang QUIET CONFIG)
 if(EXISTS ${CMAKE_SOURCE_DIR}/build_tooling/cmake)
   list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/build_tooling/cmake)
 endif()
+
 # NOTE(josh): kitware documentation says that this is already the case, however
 # that does not seem to be true.
 list(APPEND CMAKE_MODULE_PATH /usr/share/cmake/Modules)
+
 include(tangent)
 
 # cmake-lint: disable=E1122

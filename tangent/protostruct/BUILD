@@ -92,14 +92,18 @@ py_binary(
 
 genrule(
   name = "gen-pyzip",
-  srcs = ["gen.py"],
+  srcs = [
+    "gen.py",
+    ":descriptor_extensions_py_proto",
+  ],
   outs = [
     "pyzip_exe_body.zip",
   ],
   cmd = """
     $(location :make_pyzip) \
       -o $(RULEDIR)/pyzip_exe_body.zip \
-      -m $(location gen.py)""",
+      -m $(location gen.py) \
+      -b $(GENDIR)""",
   tools = [
     ":make_pyzip",
   ],

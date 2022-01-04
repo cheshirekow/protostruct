@@ -96,7 +96,8 @@ if(EXISTS "/etc/lsb-release")
   foreach(line ${_lines})
     if("${line}" MATCHES "^([^=]+)=(.+)")
       # cmake-lint: disable=C0103
-      set("BUILDENV_${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}")
+      set("BUILDENV_${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}"
+          CACHE STRING "lsb-release variable")
       set_property(GLOBAL PROPERTY "BUILDENV_${CMAKE_MATCH_1}"
                                    "${CMAKE_MATCH_2}")
     endif()
@@ -121,3 +122,4 @@ endif()
 # Default signing key
 set(DEBIAN_SIGNING_KEY 6A8A4FAF CACHE "STRING"
     "Fingerprint of gpg key used to sign debian packages")
+

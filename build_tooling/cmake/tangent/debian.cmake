@@ -1,4 +1,4 @@
-set(SUPPORTED_DISTRIBUTIONS xenial bionic eoan focal)
+set(SUPPORTED_DISTRIBUTIONS xenial bionic eoan focal impish)
 set(SUPPORTED_ARCHITECTURES amd64 arm64 i386)
 
 set_property(GLOBAL PROPERTY DEBIAN_SUPPORTED_DISTRIBUTIONS

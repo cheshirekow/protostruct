@@ -48,6 +48,13 @@ endif()
 # of the python path that needs to be included
 set(_pythonpath "${CMAKE_SOURCE_DIR}:${CMAKE_BINARY_DIR}/pynix")
 
+find_program(
+  _clang_format
+  NAMES clang-format-13 clang-format-8
+  DOC "Path to clang-format program"
+  REQUIRED)
+
+
 # Generate targets to format or lint the list of files
 #
 # Usage:
@@ -236,7 +243,7 @@ function(format_and_lint slug)
 
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${filename}.fmtstamp
-      COMMAND clang-format-8 -style file -i ${filename}
+      COMMAND ${_clang_format} -style file -i ${filename}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${_dirpath}
       COMMAND ${CMAKE_COMMAND} -E touch
               ${CMAKE_CURRENT_BINARY_DIR}/${filename}.fmtstamp
@@ -247,7 +254,7 @@ function(format_and_lint slug)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${filename}.chkfmt
       COMMAND
-      COMMAND clang-format-8 -style file ${CMAKE_CURRENT_SOURCE_DIR}/${filename}
+      COMMAND ${_clang_format} -style file ${CMAKE_CURRENT_SOURCE_DIR}/${filename}
               "|" diff -u ${CMAKE_CURRENT_SOURCE_DIR}/${filename} -
       COMMAND ${CMAKE_COMMAND} -E make_directory ${_dirpath}
       COMMAND ${CMAKE_COMMAND} -E touch

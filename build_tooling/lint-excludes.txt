@@ -15,6 +15,7 @@ linkhash/testproject/.*
 mbus/dlmalloc.*
 third_party/(.*)/.*
 tangent/util/stdio_filebuf.h
+tangentbuild/inotify_simple.py
 
 # javascript poop
 cmake_format/vscode_extension/node_modules/.*

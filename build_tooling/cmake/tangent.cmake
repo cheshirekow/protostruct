@@ -19,6 +19,7 @@ endif()
 set(_tangent_modules
     environment.cmake
     wrappers.cmake
+    python.cmake
     codestyle.cmake
     ctest_helpers.cmake
     debian.cmake

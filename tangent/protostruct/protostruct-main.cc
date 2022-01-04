@@ -977,15 +977,18 @@ int compile_main(const ProgramOptions& popts) {
     }
 
     // TODO(josh): don't bake these here.
-    // needed for bool, consider also "-std=c99", "-language=c",
-    clang_argv.push_back("-std=c++11");
-    clang_argv.push_back("-language=c++");
+    // NOTE(josh): previously used -std=c++11 and -language=c++ but would fail
+    // to parse test_messages.h on clang-13
+    clang_argv.push_back("-std=c99");
+    clang_argv.push_back("-language=c");
 
     CXErrorCode code = clang_parseTranslationUnit2(
         index, popts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
         nullptr, 0, CXTranslationUnit_None, &tunit);
     if (code != CXError_Success) {
-      std::cerr << "Failed to build translation unit, argv:";
+      std::cerr << "Failed to build translation unit for "
+                << popts.source_filepath << " code: " << code << " argv:";
+
       for (const char* arg : clang_argv) {
         std::cerr << " " << arg;
       }

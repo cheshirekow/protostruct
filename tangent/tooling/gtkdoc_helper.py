@@ -8,11 +8,6 @@ import os
 import string
 import sys
 
-if __name__ == "__main__":
-  # pylint: disable=import-error
-  sys.path.append('/usr/share/gtk-doc/python')
-  from gtkdoc import scangobj
-
 logger = logging.getLogger(__name__)
 
 TypesInfo = collections.namedtuple(
@@ -44,6 +39,10 @@ def parse_types(typespath):
 
 
 def scangobj_run(args, outfile):
+  # pylint: disable=import-error
+  sys.path.append('/usr/share/gtk-doc/python')
+  from gtkdoc import scangobj
+
   typesinfo = parse_types(args.types)
 
   outfile.write(scangobj.COMMON_INCLUDES)
@@ -71,7 +70,10 @@ def scangobj_run(args, outfile):
       "type_init_func": type_init_func,
   }
 
-  for name in ("signals", "hierarchy", "interfaces", "prerequisites", "args"):
+  names = (
+      "signals", "hierarchy", "interfaces", "prerequisites", "args", "actions"
+  )
+  for name in names:
     tplargs["new_{}_filename".format(name)] = "{}.{}".format(args.module, name)
 
   main_content = string.Template(scangobj.MAIN_CODE).substitute(tplargs)
@@ -97,10 +99,35 @@ def scangobj_main(args):
     scangobj_run(args, outfile)
 
 
+def mv_xml(args):
+  """
+  The behavior of gtkdoc-mkdb has changed and generated xml files are no
+  longer put in the xml/ subdirectory. This helper gives us consistent build
+  behavior by moving the files to xml/ if needed.
+
+  Given a list of expected output files, if any files expected at xml/foo.xml
+  are found at ./foo.xml, they are moved to xml/
+  """
+  for filepath in args.outfiles:
+    pathparts = filepath.split(os.path.sep)
+    if not pathparts[-2] == "xml":
+      logger.info("Ignoring %s", filepath)
+      continue
+    filename = pathparts[-1]
+    badpath = list(pathparts)
+    badpath.pop(-2)
+    badpath = os.path.sep.join(badpath)
+    if not os.path.exists(filepath) and os.path.exists(badpath):
+      logger.info("Moving %s -> xml/%s", badpath, filename)
+      os.rename(badpath, filepath)
+    else:
+      logger.info("Skippig %s", filepath)
+
+
 def setup_parser(argparser):
   subparsers = argparser.add_subparsers(dest="command")
 
-  parser = subparsers.add_parser("scangobj")
+  parser = subparsers.add_parser("scangobj", help=scangobj_main.__doc__)
   parser.add_argument(
       '--module', required=True,
       help='Name of the doc module being parsed')
@@ -117,6 +144,11 @@ def setup_parser(argparser):
       '--output-dir', default='.',
       help='The directory where the results are stored')
 
+  parser = subparsers.add_parser("mv-xml", help=mv_xml.__doc__)
+  parser.add_argument(
+      'outfiles', nargs="*", help="list of expected output files"
+  )
+
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__)
@@ -125,10 +157,13 @@ def main():
 
   if args.command == "scangobj":
     return scangobj_main(args)
+  if args.command == "mv-xml":
+    return mv_xml(args)
 
   logger.warning("Unrecognized command %s", args.command)
   return 1
 
 
 if __name__ == "__main__":
+  logging.basicConfig(level=logging.INFO)
   sys.exit(main())

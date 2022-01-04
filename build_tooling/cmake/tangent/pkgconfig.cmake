@@ -116,7 +116,23 @@ function(_pkg_query outvar arg)
 
   set(PKG_${outvar}_LDFLAGS_RAW
       ${_libdirs_raw} ${_libs_raw}
-      CACHE STRING "raw ldflags for ${outvar}" FORCE)
+      CACHE STRING "raw ldflags for ${outvar}"
+      FORCE)
+
+  execute_process(
+    COMMAND pkg-config --modversion ${arg}
+    RESULT_VARIABLE _pkg_err
+    OUTPUT_VARIABLE _pkg_out
+    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  if(NOT _pkg_err EQUAL 0)
+    set(pkg_errno
+        1
+        PARENT_SCOPE)
+    return()
+  endif()
+
+  set(PKG_${outvar}_VERSION "${_pkg_out}"
+      CACHE STRING "library version for ${outvar}" FORCE)
 
   set(pkg_errno
       0
