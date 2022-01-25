@@ -1,72 +1,105 @@
+// NOTE(josh): the protocol buffers documentation suggests perhaps putting
+// the `extend`` declaration inside the message definition. However, extension
+// names shared the global namespace and must be fully qualified, so if you
+// put the `extend` inside FileOptions (e.g.) then it'll have to be used like
+// the following::
+//
+//    (protostruct.FileOptions.opts).header_filepath = "";
+//
+// Which is super verbose. The alternative, as we do below, however, means that
+// the extension we use for each descriptor type needs a unique name. They
+// canot, e.g. all be called e.g. `opts`. However, since usage is fully
+// qualified, it is not possible to use something like `prostruct.opts` for
+// all message types.
+//
+// Note, furthermore, that we could make the extensions a little less verbose
+// if we pull them out of the encapsulating messages and put them directly
+// in the parent message, e.g.::
+//
+// extend google.protobuf.FileOptions {
+//   optional string header_filepath = 83111;
+//   repeated string length_defines = 83112;
+// }
+//
+// However, this means we are consuming keys from the global pool of possible
+// extensions to FileOptions. It is easier to avoid conflicts if we only
+// consume one key, instead of as many keys as we have options. This effectively
+// gives us a private "sub" keyspace to work with.
 syntax = "proto2";
 
 import "google/protobuf/descriptor.proto";
+package protostruct;
 
-package google.protobuf;
-
-
-
-message ProtostructFileOptions {
-  extend FileOptions {
-    optional ProtostructFileOptions protostruct_options = 83111;
-  }
-
+message FileOptions {
   // This is the relative path the the file, as it was passed to the
   // protostruct command line. This is the what is used in the generated
   // code to include the c structure definitions.
   optional string header_filepath = 1;
+
+  // If the header file used #define to name integral values that are used
+  // as lengths in a repeated field, then this list will contain those
+  // #defines. They aren't currently used by any generator other than the
+  // reconstruction one.
+  repeated string length_defines = 2;
 }
 
-message ProtostructEnumOptions {
-  extend EnumOptions {
-    optional ProtostructEnumOptions protostruct_options = 83111;
-  }
-
-  // Comment string that was preserved when .proto file was generated from C
-  optional string protostruct_comment = 1;
+extend google.protobuf.FileOptions {
+  optional FileOptions fileopts = 83111;
 }
 
-message ProtostructEnumValueOptions {
-  extend EnumValueOptions {
-    optional ProtostructEnumValueOptions protostruct_options = 83111;
-  }
-
+message EnumOptions {
   // Comment string that was preserved when .proto file was generated from C
-  optional string protostruct_comment = 1;
+  optional string comment = 1;
 }
 
-message ProtostructMessageOptions {
-  extend MessageOptions {
-    optional ProtostructMessageOptions protostruct_options = 83111;
-  }
-
-  // Comment string that was preserved when .proto file was generated from C
-  optional string protostruct_comment = 1;
+extend google.protobuf.EnumOptions {
+  optional EnumOptions enumopts = 83111;
 }
 
-message ProtostructFieldOptions {
-  extend FieldOptions {
-    optional ProtostructFieldOptions protostruct_options = 83111;
-  }
+message EnumValueOptions {
+  // Comment string that was preserved when .proto file was generated from C
+  optional string comment = 1;
+}
+
+extend google.protobuf.EnumValueOptions {
+  optional EnumValueOptions enumvopts = 83111;
+}
+
+message MessageOptions {
+  // Comment string that was preserved when .proto file was generated from C
+  optional string comment = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  optional MessageOptions msgopts = 83111;
+}
+
+message FieldOptions {
 
   // Comment string that was preserved when .proto file was generated from C
-  optional string protostruct_comment = 1;
+  optional string comment = 1;
 
   // The type of the corresponding field in the mapped C struct
   // representation of a message.
-  optional string protostruct_type = 2;
+  optional string fieldtype = 2;
 
-  // If this field is an array in it's C struct representation,
-  // then `length_field` stores the length of that array.
-  optional string length_field = 3;
+  // If this field is an array in its C struct representation,
+  // then `lenfield` is the name of the field which stores the occupied
+  // length of that array.
+  optional string lenfield = 3;
 
-  // If this field is an array in it's C struct representation,
+  // If this field is an array in its C struct representation,
   // then this is the size of that array, and represents the maximum number
   // of elements that it can hold.
-  optional int32 array_size = 4;
+  optional int32 capacity = 4;
+
+  // If this field is an array in its C struct representation, then this
+  // is the name of the #define or enum containing it's capacity.
+  optional string capname = 5;
 }
 
-
-
+extend google.protobuf.FieldOptions {
+  optional FieldOptions fieldopts = 83111;
+}
 
 

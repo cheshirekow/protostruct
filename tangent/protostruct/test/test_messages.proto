@@ -2,8 +2,10 @@
 // will be preserved. See the protostruct documentation for more details.
 
 syntax = "proto3";
-
+import "tangent/protostruct/descriptor_extensions.proto";
 package tangent.test;
+
+option (protostruct.fileopts).header_filepath = "tangent/protostruct/test/test_messages.h";
 
 
 /// This is enum "A"
@@ -30,8 +32,8 @@ message MyMessageB {
 /// This is message "C"
 message MyMessageC {
   reserved 1;
-  repeated MyMessageA fieldA = 3;
-  repeated      int32 fieldB = 2;
+  repeated MyMessageA fieldA = 3 [(protostruct.fieldopts).capacity=10];
+  repeated      int32 fieldB = 2 [(protostruct.fieldopts).capacity=12];
 }
 
 

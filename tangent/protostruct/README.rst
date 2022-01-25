@@ -21,11 +21,10 @@ Protostruct works in two steps `compile` and `gen`.
 compile (`FileDescriptorProto`)
 -------------------------------
 
-`protostruct` can process a C header file (`foo.h`) and generate a binary
+`protostruct` can process a C header file (`foo.h`) and generate a
 description of corresponding google protocol buffers for each enum or struct
-defined in that header file. This binary description is in the form of a
-serialized `FileDescriptorProto` (with some extensions) and is largely an
-intermediate format.
+defined in that header file. This description is in the form of a protobuf
+IDL file (.proto) or a serialized `FileDescriptorProto` (with some extensions).
 
 If a corresponding .proto file already exists, protostruct can parse it and
 use it to provide hints for certain decisions in the conversion process. In
@@ -43,6 +42,15 @@ In particular, the following will be processed from the existing `.proto`:
 5. if a primitive repeated field is annotated as "packed" then that option is
    preserved.
 
+A project may choose to integrate the compile step into their build system,
+or may choose to convert their .h to .proto once and keep the .proto as
+the canonical description. The advantage of the latter approach is that it is
+easier to manage schema evoluation and backword/forward compatibility (e.g.
+through `deprecated` and `reserved`) all in one file (the .proto). Things are
+a little more complicated if the .h are held in the project as a source of
+truth, but not impossible. In this case, a stripped down .proto can be included
+and provided for synchronization, just to manage the schema evolution.
+
 --------
 generate
 --------
@@ -50,11 +58,11 @@ generate
 From the intermediate description, `protostruct` can generate four types of
 code.
 
-foo.proto
-=========
+foo-recon.h
+===========
 
-This is a `protobuf` message description corresponding to the the structs and
-enumerations defined in the `.h` file.
+This is a reconstruction of the original header from the .proto (or .pb3)
+in the `compile` step.
 
 foo.pbc2.[h|cc]
 ===============

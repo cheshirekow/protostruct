@@ -4,6 +4,7 @@ Protostruct code generator
 
 import argparse
 import io
+import json
 import logging
 import os
 import sys
@@ -11,6 +12,7 @@ import zipfile
 
 import jinja2
 from google.protobuf import descriptor_pb2
+from google.protobuf import text_format
 
 from tangent import protostruct
 from tangent.protostruct import descriptor_extensions_pb2
@@ -59,22 +61,22 @@ def get_zipfile_path(modparent):
 
 
 def setup_argparse(argparser):
-  argparser.add_argument("--help", action="help")
   argparser.add_argument(
       "infile",
       help="path to the input file, which is a binary protocol buffer "
       "containing a serialized FileDescriptor")
   argparser.add_argument(
-      "--proto-out", "--proto_out",
-      help="root of the source tree where to emit proto files")
+      "--basename",
+      help="if provided, use this basename, instead of the basename of infile")
   argparser.add_argument(
-      "--cpp-out", "--cpp_out",
+      "--proto-out", "--proto_out",
+      help="path to write .proto, if desired")
+  argparser.add_argument(
+      "--cpp-root", "--cpp_root",
       help="root of the source tree where to emit files")
   argparser.add_argument(
-      "--only", nargs="+",
-      help="Only generate a specific set of outputs",
-      choices=TEMPLATES.keys())
-
+      "templates", nargs="*",
+      help="Only generate a specific set of outputs")
 
 def get_proto_typename(typeid):
   proto = descriptor_pb2.FieldDescriptorProto
@@ -183,53 +185,43 @@ def get_protostruct_options(descr):
   if isinstance(descr, descriptor_pb2.DescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
-        .ProtostructMessageOptions
-        .protostruct_options):
+        .msgopts):
       return None
     return descr.options.Extensions[
         descriptor_extensions_pb2
-        .ProtostructMessageOptions
-        .protostruct_options]
+        .msgopts]
   if isinstance(descr, descriptor_pb2.FieldDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
-        .ProtostructFieldOptions
-        .protostruct_options):
+        .fieldopts):
       return None
     return descr.options.Extensions[
         descriptor_extensions_pb2
-        .ProtostructFieldOptions
-        .protostruct_options]
+        .fieldopts]
   if isinstance(descr, descriptor_pb2.EnumDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
-        .ProtostructEnumOptions
-        .protostruct_options):
+        .enumopts):
       return None
     return descr.options.Extensions[
         descriptor_extensions_pb2
-        .ProtostructEnumOptions
-        .protostruct_options]
+        .enumopts]
   if isinstance(descr, descriptor_pb2.EnumValueDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
-        .ProtostructEnumValueOptions
-        .protostruct_options):
+        .enumvopts):
       return None
     return descr.options.Extensions[
         descriptor_extensions_pb2
-        .ProtostructEnumValueOptions
-        .protostruct_options]
+        .enumvopts]
   if isinstance(descr, descriptor_pb2.FileDescriptorProto):
     if not descr.options.HasExtension(
         descriptor_extensions_pb2
-        .ProtostructFileOptions
-        .protostruct_options):
+        .fileopts):
       return None
     return descr.options.Extensions[
         descriptor_extensions_pb2
-        .ProtostructFileOptions
-        .protostruct_options]
+        .fileopts]
 
   return None
 
@@ -239,10 +231,10 @@ def get_lengthfield(descr):
   if options is None:
     return ""
 
-  if not options.HasField("length_field"):
+  if not options.HasField("lenfield"):
     return ""
 
-  return options.length_field
+  return options.lenfield
 
 
 def get_arraysize(descr):
@@ -250,10 +242,10 @@ def get_arraysize(descr):
   if options is None:
     return ""
 
-  if not options.HasField("array_size"):
+  if not options.HasField("capacity"):
     return ""
 
-  return options.array_size
+  return options.capacity
 
 
 def get_header_filepath(descr):
@@ -332,11 +324,30 @@ def get_options(fielddescr):
     else:
       options.append("packed=false")
 
+  psopts = get_protostruct_options(fielddescr)
+  if psopts:
+    opsdict = {}
+    if psopts.HasField("fieldtype"):
+      psopts.ClearField("fieldtype")
+    if psopts.lenfield:
+      # We only need to record this if it's not the default
+      # TODO(josh): make a configuration option
+      if psopts.lenfield != fielddescr.name + "Count":
+        opsdict["lenfield"] = psopts.lenfield
+    if psopts.capacity:
+      opsdict["capacity"] = psopts.capacity
+
+    if len(opsdict) > 1:
+      options.append("(protostruct.fieldopts) = {%s}" % text_format.MessageToString(psopts, as_one_line=True))
+    elif opsdict:
+      for key, value in opsdict.items():
+        options.append("(protostruct.fieldopts).{}={}".format(key, json.dumps(value)))
+
   if not options:
     return ""
 
   # TODO(josh): ugly place to include the padding space
-  return " [{}]".format(",".join(options))
+  return " [{}]".format(", ".join(options))
 
 
 def is_primitive(fielddescr):
@@ -467,10 +478,10 @@ class TemplateContext(object):
     if options is None:
       return ""
 
-    if not options.HasField("protostruct_comment"):
+    if not options.HasField("comment"):
       return ""
 
-    return options.protostruct_comment
+    return options.comment
 
   def tuplize_fielddescr(self, fielddescr, style=None):
     if style is None:
@@ -567,12 +578,13 @@ TEMPLATES = {
     "cereal": [".cereal.h"],
     "pbwire": [".pbwire.h", ".pbwire.c"],
     "pb2c": [".pb2c.h", ".pb2c.cc"],
-    "cpp-simple": ["-simple.h", "-simple.cc"]
+    "cpp-simple": ["-simple.h", "-simple.cc"],
+    "recon": ["-recon.h"]
 }
 
 
 def main():
-  argparser = argparse.ArgumentParser(description=__doc__, add_help=False)
+  argparser = argparse.ArgumentParser(description=__doc__)
   setup_argparse(argparser)
   try:
     import argcomplete
@@ -609,11 +621,12 @@ def main():
       get_cpp_namespace=ctx.get_cpp_namespace,
       get_emit_fun=ctx.get_emit_fun,
       get_enum_columns=get_enum_columns,
-      get_header_filepath=get_header_filepath,
       get_field_columns=ctx.get_field_columns,
+      get_header_filepath=get_header_filepath,
       get_label=get_label,
       get_lengthfield=get_lengthfield,
       get_packed_tag=get_packed_tag,
+      get_protostruct_options=get_protostruct_options,
       get_tag=get_tag,
       get_typename=ctx.get_typename,
       has_message_field=has_message_field,
@@ -628,24 +641,21 @@ def main():
       TYPE_MESSAGE=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE,
   )
 
+
   gensource = get_header_filepath(filedescr)
   relpath_outdir = "/".join(gensource.split("/")[:-1])
-  basename = gensource.split("/")[-1].split(".")[0]
 
-  if not args.only:
-    args.only = TEMPLATES.keys()
+  if not args.basename:
+    args.basename = gensource.split("/")[-1].split(".")[0]
 
   suffixes = []
-  for group in args.only:
+  for group in args.templates:
     suffixes.extend(TEMPLATES[group])
 
   process_pairs = []
   for suffix in suffixes:
-    outfile_name = basename + suffix
-    if suffix.endswith(".proto"):
-      outfile_dir = os.path.join(args.proto_out, relpath_outdir)
-    else:
-      outfile_dir = os.path.join(args.cpp_out, relpath_outdir)
+    outfile_name = args.basename + suffix
+    outfile_dir = os.path.join(args.cpp_root, relpath_outdir)
 
     if not os.path.exists(outfile_dir):
       os.makedirs(outfile_dir)
@@ -655,9 +665,12 @@ def main():
     process_pairs.append((outfile_path, template_name))
 
   if relpath_outdir:
-    include_base = os.path.join(relpath_outdir, basename)
+    include_base = os.path.join(relpath_outdir, args.basename)
   else:
-    include_base = basename
+    include_base = args.basename
+
+  if args.proto_out:
+    process_pairs.append((args.proto_out, "XXX.proto.jinja2"))
 
   for outpath, template_name in process_pairs:
     if not outpath:
@@ -675,4 +688,7 @@ def main():
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+  # NOTE(josh): don't sys.exit or the interpreter will kill the process and
+  # Py_Main wont return, so we wont cleanup tempfiles in the main program
+  # (if needed).
+  main()

@@ -649,6 +649,7 @@ function(tangent_extract_svg)
             "--export-id=${args_EXPORT}" --export-id-only ${args_SRC})
 endfunction()
 
+# Use protostruct to generate bindings
 function(protostruct_gen args_PROTO)
   cmake_parse_arguments(args "" "" "ONLY" ${ARGN})
 
@@ -660,7 +661,7 @@ function(protostruct_gen args_PROTO)
   unset(outs)
   unset(only_flags)
   if(args_ONLY)
-    set(only_flags "--only" ${args_ONLY})
+    set(only_flags ${args_ONLY})
     foreach(groupname ${args_ONLY})
       if(groupname STREQUAL "cpp-simple")
         list(APPEND outs #
@@ -680,11 +681,9 @@ function(protostruct_gen args_PROTO)
     COMMAND
       # cmake-format: off
       $<TARGET_FILE:protostruct>
-      ${args_PROTO}
       --proto-path ${CMAKE_CURRENT_SOURCE_DIR}
-      --outfile ${CMAKE_CURRENT_BINARY_DIR}/${basename}.pb3
-      --cpp-out ${CMAKE_CURRENT_BINARY_DIR}
-      ${only_flags}
+      generate --cpp-root ${CMAKE_CURRENT_BINARY_DIR}
+      ${args_PROTO} ${only_flags}
       # cmake-format: on
     COMMAND # cmake-format: off
       ${_clang_format} -i -style=File ${outs}

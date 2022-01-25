@@ -2,9 +2,14 @@
 // will be preserved. See the protostruct documentation for more details.
 
 syntax = "proto3";
-
+import "tangent/protostruct/descriptor_extensions.proto";
 {% if filedescr.package %}
 package {{filedescr.package}};
+{% endif %}
+
+{% set opts = get_protostruct_options(filedescr) %}
+{% if opts and opts.header_filepath %}
+option (protostruct.fileopts).header_filepath = "{{opts.header_filepath}}";
 {% endif %}
 
 {% for depend in filedescr.dependency %}

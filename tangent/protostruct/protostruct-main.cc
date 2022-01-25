@@ -24,7 +24,7 @@
 #include "tangent/util/stringutil.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
-  { 0, 1, 1, "dev", 0 }
+  { 0, 2, 0, "dev", 0 }
 
 // NOTE(josh): to self, see:
 // https://developers.google.com/protocol-buffers/docs/reference/cpp#google.protobuf.compiler
@@ -71,17 +71,23 @@ std::ostream& operator<<(std::ostream& stream,
 }
 
 struct ProgramOptions {
-  std::string source_filepath;
-  std::string proto_filepath;
-
-  std::string proto_out;
-  std::string cpp_out;
-
-  std::string output_filepath{"-"};
-  std::string step{"both"};
+  std::string command;
   std::vector<std::string> proto_path;
-  std::vector<std::string> clang_options;
-  std::vector<std::string> only_list;
+
+  struct CompileOptions {
+    std::string source_filepath;
+    std::string binary_outpath;
+    std::string proto_outpath;
+    std::string proto_inpath;
+    std::vector<std::string> clang_options;
+  } compile_opts;
+
+  struct GenerateOptions {
+    std::string input_filepath;
+    std::string assume;
+    std::string cpp_root;
+    std::vector<std::string> templates;
+  } gen_opts;
 };
 
 template <class T, class U>
@@ -164,55 +170,75 @@ std::string strip_comment_prefix(const std::string& comment) {
 void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
   using argue::keywords::action;
   using argue::keywords::choices;
-  using argue::keywords::default_;
   using argue::keywords::dest;
   using argue::keywords::help;
   using argue::keywords::nargs;
 
   // clang-format off
   parser->add_argument(
-      "sourcefile", dest=&(opts->source_filepath), nargs='?',
+      "--proto-path", action="append", dest=&(opts->proto_path),
+      help="Root directory of the search tree for dependant protocol buffer."
+           " definitions. Can be specified multiple times.");
+
+
+  auto subparsers = parser->add_subparsers(
+      "command", &opts->command, {
+        .help="`compile` a proto description from an existing header, or `gen`"
+        " bindings from a proto description"});
+
+  auto compile_parser = subparsers->add_parser("compile", {.help="compile a proto description from an existing header"});
+
+  compile_parser->add_argument(
+      "sourcefile", dest=&(opts->compile_opts.source_filepath), nargs='?',
       help="The source file to parse");
 
-  parser->add_argument(
-      "-s", "--step", dest=&(opts->step), default_="both",
-      choices={"compile", "gen", "both"},
-      help="There are two steps `compile` and `gen`. The default is `both`");
-
-  parser->add_argument(
-      "-o", "--outfile", dest=&(opts->output_filepath),
+  compile_parser->add_argument(
+      "-b", "--pb3-out", dest=&(opts->compile_opts.binary_outpath),
       help="The output file where a binary encoded FileDescriptorProto is"
            " written. This will be processed by protostruct-gen to"
            " update the .proto file. The default `-` is stdout, and will"
            " be piped to protostruct-gen");
 
-  parser->add_argument(
-      "-p", "--proto-in", dest=&(opts->proto_filepath),
-      help="Override the proto file to synchronize. The default path is "
-           "constructed based on --proto-out but use this force a different "
-           "input file.");
+  compile_parser->add_argument(
+      "-o", "--proto-out", dest=&(opts->compile_opts.proto_outpath),
+      help="The output file where a binary encoded FileDescriptorProto is"
+           " written. This will be processed by protostruct-gen to"
+           " update the .proto file. The default `-` is stdout, and will"
+           " be piped to protostruct-gen");
 
-  parser->add_argument(
-      "--proto-path", action="append", dest=&(opts->proto_path),
-      help="Root directory of the search tree for dependant protocol buffer."
-           " definitions. Can be specified multiple times.");
+  compile_parser->add_argument(
+      "-i", "--proto-in", dest=&(opts->compile_opts.proto_inpath),
+      help="If provided, this .proto is used to initialize the file descriptor"
+           "prior to compiling the input. Otherwise, if the output .proto"
+           "exists, then it will be used. This option can be used to preserve"
+           "manual edits in the generated proto.");
 
-  parser->add_argument(
-      "--proto-out", dest=&(opts->proto_out),
-      help="Root directory of the output tree for generated .proto files");
-
-  parser->add_argument(
-      "--cpp-out", dest=&(opts->cpp_out),
-      help="Root directory of the output tree for generated C and C++ files");
-
-  parser->add_argument(
-      "--only", dest=&(opts->only_list), nargs="+",
-      help="Only generate bindings of these types");
-
-  parser->add_argument(
-      "remainder", nargs=argue::REMAINDER, dest=&(opts->clang_options),
+  compile_parser->add_argument(
+      "remainder", nargs=argue::REMAINDER,
+      dest=&(opts->compile_opts.clang_options),
       help="Command line flags passed to clang");
 
+  auto gen_parser = subparsers->add_parser(
+      "generate", {.help="generate bindings from a protobuf descriptor"});
+
+  gen_parser->add_argument(
+      "input-filepath", dest=&(opts->gen_opts.input_filepath),
+      help="Input .proto or .pb3");
+
+  gen_parser->add_argument(
+      "--assume", dest=&(opts->gen_opts.assume),
+      choices={"proto", "pb3"},
+      help="Ignore file suffix and assume textual .proto or binary .pb3 for"
+          " the input file");
+
+  gen_parser->add_argument(
+      "--cpp-root", dest=&(opts->gen_opts.cpp_root),
+      help="Root directory of the output tree for generated C and C++ files");
+
+  gen_parser->add_argument(
+      "gen_types", dest=&(opts->gen_opts.templates), nargs="+",
+      choices={"cpp-simple", "cereal", "pb2c", "pbwire", "recon"},
+      help="Generate bindings from these templates");
   // clang-format on
 }
 
@@ -267,9 +293,8 @@ class EnumVisitor : public ClangVisitor {
       clang_disposeString(comment_cxstr);
 
       value->mutable_options()
-          ->MutableExtension(google::protobuf::ProtostructEnumValueOptions::
-                                 protostruct_options)
-          ->set_protostruct_comment(comment);
+          ->MutableExtension(protostruct::enumvopts)
+          ->set_comment(comment);
 
       //  enum_type is field #5 within FileDescriptorProto
       auto* location = find_location(file_proto_, {5, enumidx_, 2, value_idx});
@@ -414,12 +439,12 @@ int set_default_unless_already_compatible(
 
 int set_field_type(google::protobuf::FieldDescriptorProto* proto,
                    CXType field_type) {
-  auto* my_options = proto->mutable_options()->MutableExtension(
-      google::protobuf::ProtostructFieldOptions::protostruct_options);
-  if (!my_options->has_protostruct_type()) {
+  auto* my_options =
+      proto->mutable_options()->MutableExtension(protostruct::fieldopts);
+  if (!my_options->has_fieldtype()) {
     CXString cxstr = clang_getTypeSpelling(field_type);
     const char* cstr = clang_getCString(cxstr);
-    my_options->set_protostruct_type(cstr);
+    my_options->set_fieldtype(cstr);
     clang_disposeString(cxstr);
   }
 
@@ -474,9 +499,8 @@ int set_field_type(google::protobuf::FieldDescriptorProto* proto,
       CXType elem_type = clang_getArrayElementType(field_type);
       auto array_size = clang_getArraySize(field_type);
       proto->mutable_options()
-          ->MutableExtension(
-              google::protobuf::ProtostructFieldOptions::protostruct_options)
-          ->set_array_size(array_size);
+          ->MutableExtension(protostruct::fieldopts)
+          ->set_capacity(array_size);
       return set_field_type(proto, elem_type);
     }
     case CXType_Pointer: {
@@ -662,9 +686,8 @@ class MessageVisitor : public ClangVisitor {
 
     if (!comment.empty()) {
       field->mutable_options()
-          ->MutableExtension(
-              google::protobuf::ProtostructFieldOptions::protostruct_options)
-          ->set_protostruct_comment(comment);
+          ->MutableExtension(protostruct::fieldopts)
+          ->set_comment(comment);
 
       //  message_type is field #4 within FileDescriptorProto
       int field_idx = output_fields_.size();
@@ -706,9 +729,8 @@ class MessageVisitor : public ClangVisitor {
         fieldmap.erase(fieldname);
         fieldmap[associated_fieldname]
             ->mutable_options()
-            ->MutableExtension(
-                google::protobuf::ProtostructFieldOptions::protostruct_options)
-            ->set_length_field(fieldname);
+            ->MutableExtension(protostruct::fieldopts)
+            ->set_lenfield(fieldname);
       }
     }
 
@@ -864,9 +886,8 @@ class FileVisitor : public ClangVisitor {
 
         if (comment.size() > 0) {
           enum_proto->mutable_options()
-              ->MutableExtension(
-                  google::protobuf::ProtostructEnumOptions::protostruct_options)
-              ->set_protostruct_comment(comment);
+              ->MutableExtension(protostruct::enumopts)
+              ->set_comment(comment);
 
           //  enum_type is field #5 within FileDescriptorProto
           auto* location = find_location(file_proto_, {5, enumidx});
@@ -904,9 +925,8 @@ class FileVisitor : public ClangVisitor {
 
         if (comment.size() > 0) {
           msg_proto->mutable_options()
-              ->MutableExtension(google::protobuf::ProtostructMessageOptions::
-                                     protostruct_options)
-              ->set_protostruct_comment(comment);
+              ->MutableExtension(protostruct::msgopts)
+              ->set_comment(comment);
 
           //  message_Type is field #4 within FileDescriptorProto
           auto* location = find_location(file_proto_, {4, msgidx});
@@ -936,18 +956,79 @@ void process_file(CXTranslationUnit tunit, CXFile file_of_interest,
                           file_of_interest, proto);
 }
 
+// NOTE(josh): we don't want to use limits.h because we aren't going to be
+// running this on the system we compile for. Also PATH_MAX is a lie and the
+// underlying filesystem probably supports larger paths.
+constexpr size_t _path_max = 4096;
+
+std::wstring widen(const std::string& narrow_bytes) {
+  std::wstring wide_bytes{};
+  wide_bytes.resize(narrow_bytes.size());
+
+  size_t result = mbstowcs(&wide_bytes[0], &narrow_bytes[0], wide_bytes.size());
+  wide_bytes.resize(result);
+
+  return wide_bytes;
+}
+
+std::wstring get_path_to_executable() {
+  std::array<char, _path_max> path_buf;
+  ssize_t result = readlink("/proc/self/exe", &path_buf[0], _path_max);
+
+  if (result < 0 || static_cast<size_t>(result) >= _path_max - 1) {
+    return std::wstring();
+  }
+
+  // readlink does not append a terminating null
+  path_buf[result] = '\0';
+
+  return widen(&path_buf[0]);
+}
+
+int python_gen(const std::vector<std::string>& args) {
+  // Insert the path to this file as argv[1] so that python will execute it.
+  // This file is expected to be a concatenation of this program (ELF file) one
+  // or more binary blobs and then zipfile containing python source code.
+  std::wstring my_exe = get_path_to_executable();
+
+  std::vector<std::wstring> my_args = {L"protostruct",
+                                       get_path_to_executable()};
+  for (const auto& arg : args) {
+    my_args.emplace_back(widen(arg));
+  }
+  int my_argc = my_args.size();
+
+  // NOTE(josh): must include an additional null entry to terminate the array
+  std::vector<wchar_t*> my_argv(my_argc + 1, nullptr);
+  for (int idx = 0; idx < my_argc; idx++) {
+    my_argv[idx] = &(my_args[idx][0]);
+  }
+
+  Py_SetProgramName(my_argv[0]);
+  Py_Initialize();
+  int err = Py_Main(my_argc, &my_argv[0]);
+  Py_Finalize();
+  return err;
+}
+
 int compile_main(const ProgramOptions& popts) {
   google::protobuf::compiler::DiskSourceTree source_tree{};
   for (auto& proto_path : popts.proto_path) {
     source_tree.MapPath("", proto_path);
   }
 
-  std::string proto_filepath = popts.proto_filepath;
-  if (proto_filepath.empty()) {
-    auto name_parts = stringutil::split(popts.source_filepath, '.');
+  auto& copts = popts.compile_opts;
+  std::string proto_outpath = copts.proto_outpath;
+  if (proto_outpath.empty()) {
+    auto name_parts = stringutil::split(copts.source_filepath, '.');
     name_parts.pop_back();
     name_parts.push_back("proto");
-    proto_filepath = stringutil::join(name_parts, ".");
+    proto_outpath = stringutil::join(name_parts, ".");
+  }
+
+  std::string proto_inpath = copts.proto_inpath;
+  if (proto_inpath.empty()) {
+    proto_inpath = proto_outpath;
   }
 
   MyErrorCollector error_collector{};
@@ -956,23 +1037,22 @@ int compile_main(const ProgramOptions& popts) {
   descr_db.RecordErrorsTo(&error_collector);
 
   google::protobuf::FileDescriptorProto fileproto{};
-  if (!descr_db.FindFileByName(proto_filepath, &fileproto)) {
-    LOG(FATAL) << "Failed to import " << proto_filepath;
+  if (!descr_db.FindFileByName(proto_inpath, &fileproto)) {
+    LOG(FATAL) << "Failed to import " << proto_inpath;
     exit(1);
   }
 
   fileproto.mutable_options()
-      ->MutableExtension(
-          google::protobuf::ProtostructFileOptions::protostruct_options)
-      ->set_header_filepath(popts.source_filepath);
+      ->MutableExtension(protostruct::fileopts)
+      ->set_header_filepath(copts.source_filepath);
 
-  if (!stringutil::endswith(popts.source_filepath, ".proto")) {
+  if (!stringutil::endswith(copts.source_filepath, ".proto")) {
     CXIndex index = clang_createIndex(0, 0);
     CXTranslationUnit tunit{};
 
     std::vector<const char*> clang_argv;
-    clang_argv.reserve(popts.clang_options.size() + 10);
-    for (const auto& arg : popts.clang_options) {
+    clang_argv.reserve(copts.clang_options.size() + 10);
+    for (const auto& arg : copts.clang_options) {
       clang_argv.push_back(&arg[0]);
     }
 
@@ -983,11 +1063,11 @@ int compile_main(const ProgramOptions& popts) {
     clang_argv.push_back("-language=c");
 
     CXErrorCode code = clang_parseTranslationUnit2(
-        index, popts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
+        index, copts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
         nullptr, 0, CXTranslationUnit_None, &tunit);
     if (code != CXError_Success) {
       std::cerr << "Failed to build translation unit for "
-                << popts.source_filepath << " code: " << code << " argv:";
+                << copts.source_filepath << " code: " << code << " argv:";
 
       for (const char* arg : clang_argv) {
         std::cerr << " " << arg;
@@ -1004,7 +1084,7 @@ int compile_main(const ProgramOptions& popts) {
     }
 
     CXFile file_of_interest =
-        clang_getFile(tunit, popts.source_filepath.c_str());
+        clang_getFile(tunit, copts.source_filepath.c_str());
     process_file(tunit, file_of_interest, &fileproto);
 
     clang_disposeTranslationUnit(tunit);
@@ -1041,76 +1121,98 @@ int compile_main(const ProgramOptions& popts) {
   //   }
   // }
 
-  std::ofstream outfile{popts.output_filepath};
+  std::string binary_outpath = copts.binary_outpath;
+  bool binary_is_temp = false;
+  if (binary_outpath.empty()) {
+    binary_is_temp = true;
+    binary_outpath = "temp-XXXXXX.pb3";
+    int fd = mkstemps(&binary_outpath[0], 4);
+    PLOG_IF(FATAL, fd == -1) << "Failed to create a temporary file in cwd";
+  }
+
+  std::ofstream outfile{binary_outpath};
   if (!outfile.good()) {
-    LOG(FATAL) << "Failed to open " << popts.output_filepath << " for write";
+    LOG(FATAL) << "Failed to open " << binary_outpath << " for write";
+    return 1;
   }
-
   fileproto.SerializeToOstream(&outfile);
-  return 0;
-}
 
-// NOTE(josh): we don't want to use limits.h because we aren't going to be
-// running this on the system we compile for. Also PATH_MAX is a lie and the
-// underlying filesystem probably supports larger paths.
-constexpr size_t _path_max = 4096;
+  int retcode = python_gen({binary_outpath, "--proto-out", proto_outpath});
 
-std::wstring widen(const std::string& narrow_bytes) {
-  std::wstring wide_bytes{};
-  wide_bytes.resize(narrow_bytes.size());
-
-  size_t result = mbstowcs(&wide_bytes[0], &narrow_bytes[0], wide_bytes.size());
-  wide_bytes.resize(result);
-
-  return wide_bytes;
-}
-
-std::wstring get_path_to_executable() {
-  std::array<char, _path_max> path_buf;
-  ssize_t result = readlink("/proc/self/exe", &path_buf[0], _path_max);
-
-  if (result < 0 || static_cast<size_t>(result) >= _path_max - 1) {
-    return std::wstring();
+  if (binary_is_temp) {
+    unlink(&binary_outpath[0]);
   }
 
-  // readlink does not append a terminating null
-  path_buf[result] = '\0';
-
-  return widen(&path_buf[0]);
+  return retcode;
 }
 
 int gen_main(const ProgramOptions& popts) {
-  // Insert the path to this file as argv[1] so that python will execute it.
-  // This file is expected to be a concatenation of this program (ELF file) one
-  // or more binary blobs and then zipfile containing python source code.
-  std::wstring my_exe = get_path_to_executable();
+  auto& gopts = popts.gen_opts;
 
-  std::vector<std::wstring> my_args = {L"protostruct",
-                                       get_path_to_executable(),
-                                       widen(popts.output_filepath),  // infile
-                                       L"--proto-out",
-                                       widen(popts.proto_out),
-                                       L"--cpp-out",
-                                       widen(popts.cpp_out)};
-  if (!popts.only_list.empty()) {
-    my_args.emplace_back(L"--only");
-    for (auto only : popts.only_list) {
-      my_args.emplace_back(widen(only));
+  std::string binary_filepath;
+  bool binary_is_temp = false;
+  bool is_proto = false;
+  if (gopts.assume == "proto") {
+    is_proto = true;
+  } else if (gopts.assume == "binary") {
+    is_proto = false;
+  } else {
+    is_proto = stringutil::endswith(gopts.input_filepath, ".proto");
+  }
+
+  std::vector<std::string> args{};
+
+  if (is_proto) {
+    google::protobuf::compiler::DiskSourceTree source_tree{};
+    for (auto& proto_path : popts.proto_path) {
+      source_tree.MapPath("", proto_path);
     }
-  }
-  int my_argc = my_args.size();
 
-  // NOTE(josh): must include an additional null entry to terminate the array
-  std::vector<wchar_t*> my_argv(my_argc + 1, nullptr);
-  for (int idx = 0; idx < my_argc; idx++) {
-    my_argv[idx] = &(my_args[idx][0]);
+    MyErrorCollector error_collector{};
+    google::protobuf::compiler::SourceTreeDescriptorDatabase descr_db{
+        &source_tree};
+    descr_db.RecordErrorsTo(&error_collector);
+
+    google::protobuf::FileDescriptorProto fileproto{};
+    if (!descr_db.FindFileByName(gopts.input_filepath, &fileproto)) {
+      LOG(FATAL) << "Failed to import " << gopts.input_filepath;
+      return 1;
+    }
+
+    auto name_parts = stringutil::split(gopts.input_filepath, '.');
+    name_parts.pop_back();
+    auto basename = stringutil::join(name_parts, ".");
+    args.push_back("--basename");
+    args.push_back(basename);
+
+    binary_filepath = "temp-XXXXXX.pb3";
+    int fd = mkstemps(&binary_filepath[0], 4);
+    binary_is_temp = true;
+    PLOG_IF(FATAL, fd == -1) << "Failed to create a temporary file in cwd";
+    close(fd);
+
+    std::ofstream outfile{binary_filepath};
+    if (!outfile.good()) {
+      LOG(FATAL) << "Failed to open " << binary_filepath << " for write";
+      return 1;
+    }
+    fileproto.SerializeToOstream(&outfile);
+
+  } else {
+    binary_filepath = gopts.input_filepath;
   }
 
-  Py_SetProgramName(my_argv[0]);
-  Py_Initialize();
-  int err = Py_Main(my_argc, &my_argv[0]);
-  Py_Finalize();
-  return err;
+  if (!gopts.cpp_root.empty()) {
+    args.push_back("--cpp-root");
+    args.push_back(gopts.cpp_root);
+  }
+  args.push_back(binary_filepath);
+  args.insert(args.end(), gopts.templates.begin(), gopts.templates.end());
+  int retcode = python_gen(args);
+  if (binary_is_temp) {
+    unlink(&binary_filepath[0]);
+  }
+  return retcode;
 }
 
 int main(int argc, char** argv) {
@@ -1139,21 +1241,11 @@ int main(int argc, char** argv) {
     }
   }
 
-  int err = 0;
-
-  if (popts.step == "compile" || popts.step == "both") {
-    err = compile_main(popts);
+  if (popts.command == "compile") {
+    return compile_main(popts);
   }
-  if (err != 0) {
-    return err;
+  if (popts.command == "generate") {
+    return gen_main(popts);
   }
-
-  if (popts.step == "gen" || popts.step == "both") {
-    err = gen_main(popts);
-  }
-  if (err != 0) {
-    return err;
-  }
-
-  return 0;
+  return 1;
 }

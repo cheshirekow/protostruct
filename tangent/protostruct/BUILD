@@ -133,14 +133,16 @@ genrule(
   ],
   outs = [
     "test/test_messages.pb3",
+    "test/test_messages.proto",
   ],
   cmd = """\
-    $(execpath protostruct) tangent/protostruct/test/test_messages.h \
-       --step compile \
-       --proto-path tangent/protostruct/test \
-       --proto-in test_in.proto \
-       --outfile $@ \
-       -- -I . \
+    $(execpath protostruct) \
+      --proto-path tangent/protostruct/test \
+      compile tangent/protostruct/test/test_messages.h \
+      --proto-in test_in.proto \
+      --proto-out $(RULEDIR)/test/test_messages.proto \
+      --pb3-out $(RULEDIR)/test/test_messages.pb3 \
+      -- -I .
     """,
   tools = ["protostruct"],
 )
@@ -151,7 +153,9 @@ genrule(
     "test/test_messages.pb3",
   ],
   outs = [
-    "test/test_messages.proto",
+    "test/test_messages-recon.h",
+    "test/test_messages-simple.h",
+    "test/test_messages-simple.cc",
     "test/test_messages.cereal.h",
     "test/test_messages.pbwire.h",
     "test/test_messages.pbwire.c",
@@ -159,10 +163,9 @@ genrule(
     "test/test_messages.pb2c.cc",
   ],
   cmd = """\
-    $(execpath protostruct) --step gen \
-      --outfile $< \
-      --proto-out $(GENDIR) \
-      --cpp-out $(GENDIR) \
+    $(execpath protostruct) generate \
+      --cpp-root $(GENDIR) $< \
+      cpp-simple cereal pbwire pb2c recon
   """,
   tools = ["protostruct"],
 )
@@ -170,6 +173,7 @@ genrule(
 proto_library(
   name = "test_messages_proto",
   srcs = ["test/test_messages.proto"],
+  deps = [":descriptor_extensions_proto"]
 )
 
 cc_proto_library(
@@ -180,6 +184,9 @@ cc_proto_library(
 cc_library(
   name = "test-messages",
   srcs = [
+    "test/test_messages-recon.h",
+    "test/test_messages-simple.h",
+    "test/test_messages-simple.cc",
     "test/test_messages.cereal.h",
     "test/test_messages.h",
     "test/test_messages.pb2c.cc",
@@ -192,6 +199,7 @@ cc_library(
     ":cereal_utils",
     ":pbwire",
     ":test_messages_cc_proto",
+    "//tangent/tjson:cpp",
     "//third_party/cereal",
   ],
 )

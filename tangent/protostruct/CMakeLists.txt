@@ -30,6 +30,7 @@ add_custom_command(
          ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
   DEPENDS gen.py
           make_pyzip.py
+          templates/XXX-recon.h.jinja2
           templates/XXX-simple.h.jinja2
           templates/XXX-simple.cc.jinja2
           templates/XXX.cereal.h.jinja2
@@ -211,23 +212,27 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pbwire-config.cmake"
 # compile .h/.proto -> .pb3
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
+         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
   DEPENDS protostruct ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.h
           ${CMAKE_CURRENT_SOURCE_DIR}/test/test_in.proto
           ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
   COMMAND
-    $<TARGET_FILE:protostruct> tangent/protostruct/test/test_messages.h #
-    --step compile #
-    --proto-path ${CMAKE_CURRENT_SOURCE_DIR}/test #
-    --proto-in test_in.proto #
-    --outfile ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3 #
+    # cmake-format: off
+    $<TARGET_FILE:protostruct>
+    --proto-path ${CMAKE_CURRENT_SOURCE_DIR}/test
+    compile tangent/protostruct/test/test_messages.h
+    --proto-in test_in.proto
+    --proto-out ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
+    --pb3-out ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
     -- -I ${CMAKE_SOURCE_DIR}
+    # cmake-format: on
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # generate code from .pb3
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-recon.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
@@ -237,13 +242,14 @@ add_custom_command(
           ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
   COMMAND
     # cmake-format: off
-    $<TARGET_FILE:protostruct> --step gen #
-    --outfile ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3 #
-    --proto-out ${CMAKE_SOURCE_DIR} #
-    --cpp-out ${CMAKE_SOURCE_DIR}
+    $<TARGET_FILE:protostruct> generate
+    ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
+    --cpp-root ${CMAKE_SOURCE_DIR}
+    cpp-simple cereal pbwire pb2c recon
     # cmake-format: on
   COMMAND
     ${_clang_format} -i -style=File
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-recon.h
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
@@ -272,6 +278,8 @@ cc_library(
        ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.cc
        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.cc
+       ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.h
+       ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.cc
   DEPS cereal pbwire)
 target_include_directories(test-messages PUBLIC ${CMAKE_BINARY_DIR})
 
