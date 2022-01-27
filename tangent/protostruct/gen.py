@@ -240,10 +240,13 @@ def get_lengthfield(descr):
 def get_arraysize(descr):
   options = get_protostruct_options(descr)
   if options is None:
-    return ""
+    raise ValueError("Missing options extension for %s" % descr)
 
   if not options.HasField("capacity"):
-    return ""
+    raise ValueError("Missing capacity option for %s -- %s" % (descr,options))
+
+  if options.capname:
+    return options.capname
 
   return options.capacity
 
@@ -336,6 +339,9 @@ def get_options(fielddescr):
         opsdict["lenfield"] = psopts.lenfield
     if psopts.capacity:
       opsdict["capacity"] = psopts.capacity
+    if psopts.capname:
+      opsdict.pop("capacity", None)
+      opsdict["capname"] = psopts.capname
 
     if len(opsdict) > 1:
       options.append("(protostruct.fieldopts) = {%s}" % text_format.MessageToString(psopts, as_one_line=True))
@@ -371,14 +377,14 @@ def is_enum(fielddescr):
 def format_leading_comment(commentstr, style):
   lines = commentstr.strip().split("\n")
   if style == "cpp":
-    return "/// " + "/// ".join(lines)
+    return "/// " + "\n/// ".join(lines)
   raise ValueError("Unknown style {}".format(style))
 
 
 def format_trailing_comment(commentstr, style):
   lines = commentstr.strip().split("\n")
   if style == "cpp":
-    return "//!< " + "//!< ".join(lines)
+    return "//!< " + "\n//!< ".join(lines)
   raise ValueError("Unknown style {}".format(style))
 
 

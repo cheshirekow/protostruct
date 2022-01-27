@@ -6,6 +6,8 @@ import "tangent/protostruct/descriptor_extensions.proto";
 package tangent.test;
 
 option (protostruct.fileopts).header_filepath = "tangent/protostruct/test/test_messages.h";
+option (protostruct.fileopts).capacity_macros = "FIELD_B_CAPACITY 12";
+option (protostruct.fileopts).capacity_macros = "FIELD_C_CAPACITY 10";
 
 
 /// This is enum "A"
@@ -33,7 +35,8 @@ message MyMessageB {
 message MyMessageC {
   reserved 1;
   repeated MyMessageA fieldA = 3 [(protostruct.fieldopts).capacity=10];
-  repeated      int32 fieldB = 2 [(protostruct.fieldopts).capacity=12];
+  repeated      int32 fieldB = 2 [(protostruct.fieldopts).capname="FIELD_B_CAPACITY"];
+  repeated      int32 fieldC = 6 [(protostruct.fieldopts).capname="FIELD_C_CAPACITY"];
 }
 
 

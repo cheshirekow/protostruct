@@ -324,6 +324,20 @@ int _pbemit0_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj) {
     }
     encoded_size += write_result;
   }
+  /* fieldC */
+  for (int idx = 0; idx < obj->fieldCCount; idx++) {
+    write_result = pbwire_write_tag(ctx, 48);
+    if (write_result < 0) {
+      return write_result;
+    }
+    encoded_size += write_result;
+
+    write_result = pbemit_int32(ctx, obj->fieldC[idx]);
+    if (write_result < 0) {
+      return write_result;
+    }
+    encoded_size += write_result;
+  }
   return encoded_size;
 }
 
@@ -370,6 +384,20 @@ int _pbemit1_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj) {
     }
     ctx->buffer.ptr += write_result;
   }
+  /* fieldC */
+  for (int idx = 0; idx < obj->fieldCCount; idx++) {
+    write_result = pbwire_write_tag(ctx, 48);
+    if (write_result < 0) {
+      return write_result;
+    }
+    ctx->buffer.ptr += write_result;
+
+    write_result = pbemit_int32(ctx, obj->fieldC[idx]);
+    if (write_result < 0) {
+      return write_result;
+    }
+    ctx->buffer.ptr += write_result;
+  }
 
   return (ctx->buffer.ptr - buffer_begin);
 }
@@ -395,6 +423,10 @@ static int _parse_fielditem_MyMessageC(pbwire_ParseContext* ctx,
     /* fieldB */
     case 16: {
       return pbparse_int32(ctx, &obj->fieldB[obj->fieldBCount++]);
+    }
+    /* fieldC */
+    case 48: {
+      return pbparse_int32(ctx, &obj->fieldC[obj->fieldCCount++]);
     }
     default:
       /* Unknown field */

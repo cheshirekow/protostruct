@@ -92,6 +92,7 @@ tjson::OStream& operator<<(tjson::OStream& out, const MyMessageC& value) {
   tjson::Guard guard{&out, tjson::OBJECT};
   out << "fieldA" << value.fieldA;
   out << "fieldB" << value.fieldB;
+  out << "fieldC" << value.fieldC;
   return out;
 }
 
@@ -151,6 +152,8 @@ static int MyMessageC_fielditem_callback(void* pobj, tjson_ParseContext ctx,
       return tjson::parse(ctx, &obj->fieldA);
     case tangent::suci_hash("fieldB"):
       return tjson::parse(ctx, &obj->fieldB);
+    case tangent::suci_hash("fieldC"):
+      return tjson::parse(ctx, &obj->fieldC);
   }
   return 0;
 }

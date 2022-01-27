@@ -6,6 +6,12 @@
 include "{{depend.replace(".", "/")}}.h";
 {% endfor %}
 
+{% set opts = get_protostruct_options(filedescr) %}
+{% if opts and opts.capacity_macros %}
+{% for macrodef in opts.capacity_macros %}
+#define {{macrodef}}
+{% endfor %}
+{% endif %}
 
 {% for enumidx, enumdescr in enumerate(filedescr.enum_type) %}
 {{ctx.get_leading_comment([5, enumidx], "cpp")}}

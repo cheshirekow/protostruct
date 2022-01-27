@@ -44,4 +44,6 @@ void serialize(Archive& archive, MyMessageC& cobj) {
       "fieldA", protostruct::cereal_array(cobj.fieldA, cobj.fieldACount)));
   archive(cereal::make_nvp(
       "fieldB", protostruct::cereal_array(cobj.fieldB, cobj.fieldBCount)));
+  archive(cereal::make_nvp(
+      "fieldC", protostruct::cereal_array(cobj.fieldC, cobj.fieldCCount)));
 }
