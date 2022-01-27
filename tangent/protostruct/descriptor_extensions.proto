@@ -40,7 +40,7 @@ message FileOptions {
   // as lengths in a repeated field, then this list will contain those
   // #defines. They aren't currently used by any generator other than the
   // reconstruction one.
-  repeated string length_defines = 2;
+  repeated string capacity_macros = 2;
 }
 
 extend google.protobuf.FileOptions {

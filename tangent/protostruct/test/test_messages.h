@@ -22,12 +22,17 @@ typedef struct MyMessageB {
   MyMessageA fieldA;  //!< field A
 } MyMessageB;
 
+#define FIELD_B_CAPACITY 12
+#define FIELD_C_CAPACITY 10
+
 /// This is message "C"
 typedef struct MyMessageC {
   MyMessageA fieldA[10];
   uint32_t fieldACount;
-  int32_t fieldB[12];
+  int32_t fieldB[FIELD_B_CAPACITY];
   uint32_t fieldBCount;
+  int32_t fieldC[FIELD_C_CAPACITY];
+  uint32_t fieldCCount;
 } MyMessageC;
 
 /// protostruct: skip

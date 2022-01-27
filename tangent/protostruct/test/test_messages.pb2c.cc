@@ -58,9 +58,13 @@ void pb2c(const tangent::test::MyMessageC& proto, MyMessageC* cobj) {
   for (int idx = 0; idx < static_cast<int>(cobj->fieldACount); idx++) {
     pb2c(proto.fielda(idx), &cobj->fieldA[idx]);
   }
-  cobj->fieldBCount = std::min<int>(proto.fieldb_size(), 12);
+  cobj->fieldBCount = std::min<int>(proto.fieldb_size(), FIELD_B_CAPACITY);
   for (int idx = 0; idx < static_cast<int>(cobj->fieldBCount); idx++) {
     cobj->fieldB[idx] = proto.fieldb(idx);
+  }
+  cobj->fieldCCount = std::min<int>(proto.fieldc_size(), FIELD_C_CAPACITY);
+  for (int idx = 0; idx < static_cast<int>(cobj->fieldCCount); idx++) {
+    cobj->fieldC[idx] = proto.fieldc(idx);
   }
 }
 
@@ -74,5 +78,10 @@ void c2pb(const MyMessageC& cobj, tangent::test::MyMessageC* proto) {
   proto->mutable_fieldb()->Reserve(cobj.fieldBCount);
   for (int idx = 0; idx < static_cast<int>(cobj.fieldBCount); idx++) {
     proto->add_fieldb(cobj.fieldB[idx]);
+  }
+  proto->mutable_fieldc()->Clear();
+  proto->mutable_fieldc()->Reserve(cobj.fieldCCount);
+  for (int idx = 0; idx < static_cast<int>(cobj.fieldCCount); idx++) {
+    proto->add_fieldc(cobj.fieldC[idx]);
   }
 }

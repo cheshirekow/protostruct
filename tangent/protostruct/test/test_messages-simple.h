@@ -48,6 +48,7 @@ tjson::OStream& operator<<(tjson::OStream& out, const MyMessageB& value);
 struct MyMessageC {
   std::vector<MyMessageA> fieldA;
   std::vector<int32_t> fieldB;
+  std::vector<int32_t> fieldC;
 
   void parse_json(const std::string& json_str);
   std::string to_json();

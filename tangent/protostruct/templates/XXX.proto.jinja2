@@ -11,6 +11,11 @@ package {{filedescr.package}};
 {% if opts and opts.header_filepath %}
 option (protostruct.fileopts).header_filepath = "{{opts.header_filepath}}";
 {% endif %}
+{% if opts and opts.capacity_macros %}
+{% for macrodef in opts.capacity_macros %}
+option (protostruct.fileopts).capacity_macros = "{{macrodef.replace("\n","\\n")}}";
+{% endfor %}
+{% endif %}
 
 {% for depend in filedescr.dependency %}
 import "{{depend}}";

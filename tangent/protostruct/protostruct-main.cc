@@ -1,4 +1,6 @@
 // Copyright 2020 Josh Bialkowski <josh.bialkowski@gmail.com>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -544,22 +546,137 @@ std::string normalize_type_name(const std::string& type_name) {
   return stringutil::split(type_name, '.').back();
 }
 
+/// Shared state that is needed at all depths of the visitation
+class VisitorContext {
+ public:
+  VisitorContext(CXTranslationUnit tunit, const std::string source_filepath,
+                 google::protobuf::FileDescriptorProto* file_proto)
+      : tunit_{tunit},
+        source_filepath_{source_filepath},
+        file_proto_{file_proto} {
+    file_of_interest_ = clang_getFile(tunit, source_filepath.c_str());
+    fd_ = open(source_filepath_.c_str(), O_RDONLY);
+    PLOG_IF(FATAL, fd_ == -1) << "Failed to open" << source_filepath_;
+    int err = fstat(fd_, &statbuf_);
+    PLOG_IF(FATAL, err) << "Failed to stat" << source_filepath_;
+    void* memblock =
+        mmap(NULL, statbuf_.st_size, PROT_READ, MAP_SHARED, fd_, 0);
+    PLOG_IF(FATAL, memblock == MAP_FAILED)
+        << "Failed to mmap" << source_filepath_;
+    memblock_ = reinterpret_cast<char*>(memblock);
+  }
+
+  ~VisitorContext() {
+    munmap(memblock_, statbuf_.st_size);
+    close(fd_);
+  }
+
+  std::string get_source(const CXSourceRange& range) {
+    CXSourceLocation begin = clang_getRangeStart(range);
+    CXSourceLocation end = clang_getRangeEnd(range);
+    CXFile cxFile;
+    unsigned int beginOff;
+    unsigned int endOff;
+    clang_getExpansionLocation(begin, &cxFile, 0, 0, &beginOff);
+    clang_getExpansionLocation(end, 0, 0, 0, &endOff);
+
+    LOG_IF(FATAL, endOff > statbuf_.st_size)
+        << "File size " << statbuf_.st_size
+        << "is less than the cursor terminal offset of" << endOff;
+
+    return std::string{memblock_ + beginOff, endOff - beginOff};
+  }
+
+  CXFile file_of_interest() {
+    return file_of_interest_;
+  }
+
+  google::protobuf::FileDescriptorProto* file_proto() {
+    return file_proto_;
+  };
+
+  std::map<std::string, std::string>& macros() {
+    return macros_;
+  }
+
+  bool note_capname(const std::string& capname) {
+    /* iter scope */ {
+      auto iter = macros_.find(capname);
+      if (iter != macros_.end()) {
+        file_proto_->mutable_options()
+            ->MutableExtension(protostruct::fileopts)
+            ->add_capacity_macros(iter->second);
+        macros_.erase(iter);
+        capname_macros_.insert(capname);
+      }
+    }
+
+    /* iter scope */ {
+      auto iter = capname_macros_.find(capname);
+      return iter != capname_macros_.end();
+    }
+  }
+
+ private:
+  /// The translation unit built by compiling the header
+  CXTranslationUnit tunit_;
+
+  /// The path to the header file that was compiled
+  std::string source_filepath_;
+
+  /// Pointer to the mutable file descriptor proto that we are building,
+  /// possibly containing information digested from an "sychronization"
+  /// .proto
+  google::protobuf::FileDescriptorProto* file_proto_;
+
+  /// Handle to the file object for the header file within the translation
+  /// unit.
+  CXFile file_of_interest_;
+
+  /// File descriptor for the header file, opened and mapped for read
+  int fd_;
+
+  /// Pointer to the first byte of mapped memory for the source file, providing
+  /// access to the bytes required to pluck out strings by offset
+  char* memblock_;
+
+  /// stat buffer containing filesystem statistics of the header file we are
+  /// processing.
+  struct stat statbuf_;
+
+  /// Macros defined in this file
+  std::map<std::string, std::string> macros_;
+
+  /// Macros that were referenced as array lenghts
+  std::set<std::string> capname_macros_;
+};
+
+/// Visit the field declaration for a fixed-length array and look for a
+/// numeric constant reference used as the array size.
 class FieldVisitor : public ClangVisitor {
  public:
-  explicit FieldVisitor(google::protobuf::FieldDescriptorProto* proto)
-      : proto_{proto} {
-    (void)proto_;
-  }
+  explicit FieldVisitor(google::protobuf::FieldDescriptorProto* proto,
+                        VisitorContext* ctx)
+      : proto_{proto}, ctx_{ctx} {}
   virtual ~FieldVisitor() {}
 
   CXChildVisitResult visit(CXCursor c, CXCursor parent) override {
-    LOG(INFO) << "[" << clang_getCursorKindSpelling(clang_getCursorKind(c))
-              << "]: " << clang_getCursorSpelling(c);
+    if (clang_getCursorKind(c) == CXCursor_IntegerLiteral) {
+      CXSourceRange range = clang_getCursorExtent(c);
+      std::string capname = ctx_->get_source(range);
+      bool is_macro = ctx_->note_capname(capname);
+      if (is_macro) {
+        proto_->mutable_options()
+            ->MutableExtension(protostruct::fieldopts)
+            ->set_capname(capname);
+      }
+    }
     return CXChildVisit_Recurse;
   }
 
  private:
   google::protobuf::FieldDescriptorProto* proto_;
+  VisitorContext* ctx_;
 };
 
 bool fieldname_is_lengthfield(const std::string& fieldname,
@@ -581,11 +698,8 @@ bool fieldname_is_lengthfield(const std::string& fieldname,
 class MessageVisitor : public ClangVisitor {
  public:
   explicit MessageVisitor(google::protobuf::DescriptorProto* proto, int msgidx,
-                          google::protobuf::FileDescriptorProto* file_proto)
-      : proto_{proto},
-        msgidx_{msgidx},
-        file_proto_{file_proto},
-        next_number_{1} {
+                          VisitorContext* ctx)
+      : proto_{proto}, msgidx_{msgidx}, ctx_{ctx}, next_number_{1} {
     for (int idx = 0; idx < proto_->reserved_range_size(); idx++) {
       auto range = proto_->reserved_range(idx);
       if (range.has_end()) {
@@ -666,7 +780,11 @@ class MessageVisitor : public ClangVisitor {
         return CXChildVisit_Continue;
       }
     }
-    // visit_tree<FieldVisitor>(c, field.get());
+    if (fieldtype.kind == CXType_ConstantArray) {
+      // Recurse the AST and see if the size of the array is a reference to a
+      // #define or something
+      visit_tree<FieldVisitor>(c, field.get(), ctx_);
+    }
 
     CXString comment_cxstr = clang_Cursor_getRawCommentText(c);
     const char* comment_cstr = clang_getCString(comment_cxstr);
@@ -691,7 +809,8 @@ class MessageVisitor : public ClangVisitor {
 
       //  message_type is field #4 within FileDescriptorProto
       int field_idx = output_fields_.size();
-      auto* location = find_location(file_proto_, {4, msgidx_, 2, field_idx});
+      auto* location =
+          find_location(ctx_->file_proto(), {4, msgidx_, 2, field_idx});
 
       // TODO(josh): this is a hack, use clang_Curosr_getCommentRange to
       // determine if it's leading or trailing
@@ -710,34 +829,43 @@ class MessageVisitor : public ClangVisitor {
 
  private:
   void _strip_lengthfields() {
+    // Set of fieldnames. We search this when trying to determine if a
+    // particular fieldname is a count field (according to whether or not
+    // it matches the name of another field, suffixed by Count).
     std::set<std::string> fieldnames;
+
+    // Map from field name to the descriptor which mapped it. If we
+    // discover a lengthfield then we will use this to look up the associated
+    // field and add the lengthfield annotation to it.
     std::map<std::string,
              std::shared_ptr<google::protobuf::FieldDescriptorProto>>
         fieldmap;
 
+    // First, populate our indices.
     for (auto& fieldptr : output_fields_) {
       fieldmap[fieldptr->name()] = fieldptr;
       fieldnames.emplace(fieldptr->name());
     }
 
-    for (auto& fieldname : fieldnames) {
+    // NOTE(josh): care must be takent to preserve the order of field
+    // descriptors so that we can output them in the same order we read them.
+    std::vector<std::shared_ptr<google::protobuf::FieldDescriptorProto>>
+        output_fields;
+    for (auto& fieldptr : output_fields_) {
       std::string associated_fieldname{};
-      if (fieldname_is_lengthfield(fieldname, fieldnames,
+      if (fieldname_is_lengthfield(fieldptr->name(), fieldnames,
                                    &associated_fieldname)) {
-        LOG(INFO) << "Matched " << fieldname << " as a lengthfield for "
+        LOG(INFO) << "Matched " << fieldptr->name() << " as a lengthfield for "
                   << associated_fieldname;
-        fieldmap.erase(fieldname);
         fieldmap[associated_fieldname]
             ->mutable_options()
             ->MutableExtension(protostruct::fieldopts)
-            ->set_lenfield(fieldname);
+            ->set_lenfield(fieldptr->name());
+      } else {
+        output_fields.emplace_back(fieldptr);
       }
     }
-
-    output_fields_.clear();
-    for (auto& pair : fieldmap) {
-      output_fields_.emplace_back(pair.second);
-    }
+    output_fields_.swap(output_fields);
   }
 
  public:
@@ -789,7 +917,7 @@ class MessageVisitor : public ClangVisitor {
  private:
   google::protobuf::DescriptorProto* proto_;
   int msgidx_;
-  google::protobuf::FileDescriptorProto* file_proto_;
+  VisitorContext* ctx_;
   int next_number_;
   std::set<IntRange> reserved_ranges_;
   std::set<int> existing_numbers_;
@@ -837,11 +965,11 @@ google::protobuf::DescriptorProto* find_message(
   return new_msg;
 }
 
+/// Top level visitor: Recursively walk the AST looking for enum or struct
+/// definitions and dispatch specific visitors for each.
 class FileVisitor : public ClangVisitor {
  public:
-  FileVisitor(CXFile file_of_interest,
-              google::protobuf::FileDescriptorProto* proto)
-      : file_of_interest_{file_of_interest}, file_proto_{proto} {}
+  FileVisitor(VisitorContext* ctx) : ctx_{ctx} {}
 
   CXChildVisitResult visit(CXCursor c, CXCursor parent) override {
     CXSourceLocation cursor_location = clang_getCursorLocation(c);
@@ -850,7 +978,9 @@ class FileVisitor : public ClangVisitor {
     unsigned int cursor_column{0};
     clang_getSpellingLocation(cursor_location, &cursor_file, &cursor_line,
                               &cursor_column, nullptr);
-    if (!clang_File_isEqual(file_of_interest_, cursor_file)) {
+    if (!clang_File_isEqual(ctx_->file_of_interest(), cursor_file)) {
+      // This cursor is from some (possibly transitive) include file, so we
+      // wont worry about any of the stuff defined in it.
       return CXChildVisit_Continue;
     }
 
@@ -881,8 +1011,8 @@ class FileVisitor : public ClangVisitor {
           clang_disposeString(namestr);
         }
         int enumidx = 0;
-        auto* enum_proto = find_enum(file_proto_, needle, &enumidx);
-        visit_tree<EnumVisitor>(c, enum_proto, enumidx, file_proto_);
+        auto* enum_proto = find_enum(ctx_->file_proto(), needle, &enumidx);
+        visit_tree<EnumVisitor>(c, enum_proto, enumidx, ctx_->file_proto());
 
         if (comment.size() > 0) {
           enum_proto->mutable_options()
@@ -890,7 +1020,7 @@ class FileVisitor : public ClangVisitor {
               ->set_comment(comment);
 
           //  enum_type is field #5 within FileDescriptorProto
-          auto* location = find_location(file_proto_, {5, enumidx});
+          auto* location = find_location(ctx_->file_proto(), {5, enumidx});
           std::string stripped_comment = strip_comment_prefix(comment);
           location->set_leading_comments(stripped_comment);
         }
@@ -920,8 +1050,8 @@ class FileVisitor : public ClangVisitor {
         }
 
         int msgidx = 0;
-        auto* msg_proto = find_message(file_proto_, needle, &msgidx);
-        visit_tree<MessageVisitor>(c, msg_proto, msgidx, file_proto_);
+        auto* msg_proto = find_message(ctx_->file_proto(), needle, &msgidx);
+        visit_tree<MessageVisitor>(c, msg_proto, msgidx, ctx_);
 
         if (comment.size() > 0) {
           msg_proto->mutable_options()
@@ -929,11 +1059,23 @@ class FileVisitor : public ClangVisitor {
               ->set_comment(comment);
 
           //  message_Type is field #4 within FileDescriptorProto
-          auto* location = find_location(file_proto_, {4, msgidx});
+          auto* location = find_location(ctx_->file_proto(), {4, msgidx});
           std::string stripped_comment = strip_comment_prefix(comment);
           location->set_leading_comments(stripped_comment);
         }
         return CXChildVisit_Continue;
+      }
+
+      case CXCursor_MacroDefinition: {
+        // NOTE(josh): clang_getCursorSpelling yields only the name of the
+        // macro, not it's definition/expansions
+
+        std::stringstream strm{};
+        strm << clang_getCursorSpelling(c);
+        std::string name = strm.str();
+        std::string defn = ctx_->get_source(clang_getCursorExtent(c));
+        ctx_->macros()[name] = defn;
+        break;
       }
 
       default:
@@ -946,14 +1088,13 @@ class FileVisitor : public ClangVisitor {
  private:
   std::set<std::string> visited_enums_;
   std::set<std::string> visited_messages_;
-  CXFile file_of_interest_;
-  google::protobuf::FileDescriptorProto* file_proto_;
+  VisitorContext* ctx_;
 };
 
-void process_file(CXTranslationUnit tunit, CXFile file_of_interest,
-                  google::protobuf::FileDescriptorProto* proto) {
-  visit_tree<FileVisitor>(clang_getTranslationUnitCursor(tunit),
-                          file_of_interest, proto);
+void process_file(CXTranslationUnit tunit, std::string source_filepath,
+                  google::protobuf::FileDescriptorProto* file_proto) {
+  VisitorContext ctx{tunit, source_filepath, file_proto};
+  visit_tree<FileVisitor>(clang_getTranslationUnitCursor(tunit), &ctx);
 }
 
 // NOTE(josh): we don't want to use limits.h because we aren't going to be
@@ -1038,8 +1179,12 @@ int compile_main(const ProgramOptions& popts) {
 
   google::protobuf::FileDescriptorProto fileproto{};
   if (!descr_db.FindFileByName(proto_inpath, &fileproto)) {
-    LOG(FATAL) << "Failed to import " << proto_inpath;
-    exit(1);
+    if (proto_inpath == proto_outpath) {
+      LOG(WARNING) << "Failed to import " << proto_inpath;
+    } else {
+      LOG(FATAL) << "Failed to import " << proto_inpath;
+      exit(1);
+    }
   }
 
   fileproto.mutable_options()
@@ -1064,7 +1209,8 @@ int compile_main(const ProgramOptions& popts) {
 
     CXErrorCode code = clang_parseTranslationUnit2(
         index, copts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
-        nullptr, 0, CXTranslationUnit_None, &tunit);
+        nullptr, 0, CXTranslationUnit_DetailedPreprocessingRecord, &tunit);
+
     if (code != CXError_Success) {
       std::cerr << "Failed to build translation unit for "
                 << copts.source_filepath << " code: " << code << " argv:";
@@ -1083,9 +1229,7 @@ int compile_main(const ProgramOptions& popts) {
       exit(1);
     }
 
-    CXFile file_of_interest =
-        clang_getFile(tunit, copts.source_filepath.c_str());
-    process_file(tunit, file_of_interest, &fileproto);
+    process_file(tunit, copts.source_filepath, &fileproto);
 
     clang_disposeTranslationUnit(tunit);
     clang_disposeIndex(index);
