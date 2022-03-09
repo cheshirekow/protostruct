@@ -87,6 +87,8 @@ tangent/tooling/generate_style_manifest.py
 tangent/tooling/github.py
 tangent/tooling/install_debug_symbols.py
 tangent/util/elf_file.h
+tangentbuild/database.py
+tangentbuild/logcat.py
 vultk/BUILD.py
 
 # pylint will look at the git worktree directory as the module name. This file

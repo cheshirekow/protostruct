@@ -15,9 +15,9 @@ import tarfile
 logger = logging.getLogger(__name__)
 
 
-def iswellknown(filname):
+def iswellknown(candidate_filename):
   for pattern in WELL_KNOWN_SOs:
-    if pattern.match(filename):
+    if pattern.match(candidate_filename):
       return True
   return False
 
@@ -32,15 +32,15 @@ parser.add_argument("--outfile")
 args = parser.parse_args()
 
 WELL_KNOWN_SOs = [re.compile(x) for x in [
-  r"linux-vdso\.so.*",
-  r"libz\.so.*",
-  r"libm\.so.*",
-  r"libstdc\+\+\.so.*",
-  r"libc\.so.*",
-  r".*/ld-linux-.*\.so.*",
-  r"libunwind.*",
-  r"libgcc_s.so.*",
-  r"libpthread.so.*",
+    r"linux-vdso\.so.*",
+    r"libz\.so.*",
+    r"libm\.so.*",
+    r"libstdc\+\+\.so.*",
+    r"libc\.so.*",
+    r".*/ld-linux-.*\.so.*",
+    r"libunwind.*",
+    r"libgcc_s.so.*",
+    r"libpthread.so.*",
 ]]
 
 deps = []
@@ -53,7 +53,8 @@ load(
 """]
 
 dlmap = {}
-for cwd, dirnames, filenames in os.walk(args.protostruct_header_path + ".runfiles"):
+for cwd, dirnames, filenames in os.walk(
+    args.protostruct_header_path + ".runfiles"):
   dirnames[:] = sorted(dirnames)
   for filename in sorted(filenames):
     dlmap[filename] = os.path.join(cwd, filename)
@@ -61,7 +62,8 @@ for cwd, dirnames, filenames in os.walk(args.protostruct_header_path + ".runfile
 with tarfile.open(args.outfile, "w:gz", dereference=True) as outfile:
   outfile.add(args.protostruct_path, "protostruct.elf")
 
-  lddcontent = subprocess.check_output(["ldd", args.protostruct_header_path]).decode("utf-8")
+  lddcontent = subprocess.check_output(
+      ["ldd", args.protostruct_header_path]).decode("utf-8")
   for line in lddcontent.split("\n"):
     if "=>" not in line:
       continue
@@ -101,7 +103,8 @@ sh_binary(
 
   with open(args.tools_bzl_path) as infile:
     content = infile.read()
-  data = content.replace("//tangent/protostruct", "@protostruct//").encode("utf-8")
+  data = content.replace(
+      "//tangent/protostruct", "@protostruct//").encode("utf-8")
   tarinfo = tarfile.TarInfo('tools.bzl')
   tarinfo.size = len(data)
   outfile.addfile(tarinfo, io.BytesIO(data))

@@ -167,8 +167,12 @@ def get_enum_columns(enums, style=None):
   if style is None:
     style = "proto"
 
-  maxnamelen = max(len(enumdescr.name) for enumdescr in enums)
-  maxnumlen = max(len("{}".format(enumdescr.number)) for enumdescr in enums)
+  if enums:
+    maxnamelen = max(len(enumdescr.name) for enumdescr in enums)
+    maxnumlen = max(len("{}".format(enumdescr.number)) for enumdescr in enums)
+  else:
+    maxnamelen = 8
+    maxnumlen = 3
 
   style = style.lower()
   if style == "proto":
@@ -669,6 +673,9 @@ def main():
   relpath_outdir = "/".join(gensource.split("/")[:-1])
 
   if not args.basename:
+    if not gensource:
+      logger.fatal(
+          "No basename specified and no filepath in the FileDescriptor proto")
     args.basename = gensource.split("/")[-1].split(".")[0]
 
   suffixes = []
@@ -711,10 +718,12 @@ def main():
     with io.open(outpath, "w", encoding="utf-8") as outfile:
       outfile.write(content)
       outfile.write("\n")
+    logger.info("Wrote %s", outpath)
 
 
 if __name__ == "__main__":
   # NOTE(josh): don't sys.exit or the interpreter will kill the process and
   # Py_Main wont return, so we wont cleanup tempfiles in the main program
   # (if needed).
+  logging.basicConfig()
   main()

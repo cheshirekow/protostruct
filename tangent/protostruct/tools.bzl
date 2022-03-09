@@ -3,18 +3,20 @@ load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 def protostruct_compile(
     name = None,
     proto_path = None,
-    header = None,
+    sourcefile = None,
     deps = None,
     proto_out = None,
     pb3_out = None,
+    source_patterns = None,
+    name_patterns = None,
     proto_sync = None,
     visibility = None,
     cflags = None,
     enforce = False):
-  """Use protostruct to reverse out the message spec from an existing header
+  """Use protostruct to reverse out the message spec from existing structs
 
   Args:
-    header: string of header to reverse
+    sourcefile: string of sourcefile to reverse
     proto_path: list[string] of directories to include on the protopath
       when constructing protos
     deps: cc dependencies that need to be in the sandbox when we compile
@@ -26,8 +28,6 @@ def protostruct_compile(
       the input proto from `proto_sync`
   """
 
-  if not header.endswith(".h"):
-    fail("Invalid header name {}".format(header))
   if not proto_out and not pb3_out:
     fail("One of proto_out or pb3_out are required")
 
@@ -37,16 +37,20 @@ def protostruct_compile(
     deps = []
   if cflags == None:
     cflags = []
+  if source_patterns == None:
+    source_patterns = []
+  if name_patterns == None:
+    name_patterns = []
 
-  srcs = [header]
+  srcs = [sourcefile]
   outs = []
 
   cmdparts = [
     "$(execpath //tangent/protostruct:protostruct)",
-    "  --proto-path $$(dirname {})".format(header),
+    "  --proto-path $$(dirname {})".format(sourcefile),
   ] + ["--proto-path " + path for path in proto_path] + [
     "compile",
-    "$(location {})".format(header),
+    "$(location {})".format(sourcefile),
   ]
 
   if proto_sync:
@@ -59,6 +63,11 @@ def protostruct_compile(
   if pb3_out:
     cmdparts += ["--pb3-out", "$(RULEDIR)/" + pb3_out]
     outs += [pb3_out]
+
+  if source_patterns:
+    cmdparts += ["--source-patterns"] + ['"%s"' % x for x in source_patterns]
+  if name_patterns:
+    cmdparts += ["--name-patterns"] + ['"%s"' % x for x in name_patterns]
 
   cmdparts += ["--", "-I ."] + cflags
 

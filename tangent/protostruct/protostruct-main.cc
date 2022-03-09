@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <string>
@@ -17,6 +18,7 @@
 #include <clang-c/Index.h>
 #include <glog/logging.h>
 #include <google/protobuf/compiler/importer.h>
+#include <google/protobuf/descriptor_database.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <google/protobuf/wire_format_lite.h>
 
@@ -26,11 +28,25 @@
 #include "tangent/util/stringutil.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
-  { 0, 2, 0, "dev", 1 }
+  { 0, 2, 0, "dev", 2 }
 
 // NOTE(josh): to self, see:
 // https://developers.google.com/protocol-buffers/docs/reference/cpp#google.protobuf.compiler
 // for c++ API to read .proto.
+
+// Convert a clang string to a C++ string and then release the held clang
+// reference to that string
+std::string drop_cxstring(CXString clang_string) {
+  const char* result_cstr = clang_getCString(clang_string);
+  std::string result;
+  if (result_cstr) {
+    result = result_cstr;
+  } else {
+    result = "<null>";
+  }
+  clang_disposeString(clang_string);
+  return result;
+}
 
 class MyErrorCollector
     : public google::protobuf::compiler::MultiFileErrorCollector {
@@ -55,13 +71,6 @@ class MyErrorCollector
   int status_;
 };
 
-std::string drop_cxstring(CXString str) {
-  const char* cstr = clang_getCString(str);
-  std::string cppstr{cstr};
-  clang_disposeString(str);
-  return cppstr;
-}
-
 std::ostream& operator<<(std::ostream& stream, const CXString& str) {
   stream << clang_getCString(str);
   clang_disposeString(str);
@@ -79,15 +88,71 @@ std::ostream& operator<<(std::ostream& stream,
   return stream;
 }
 
+struct NameParts {
+  std::string reldir;
+  std::string basename;
+};
+
+/// Split a filepath into a directory part and basename
+NameParts splitpath(const std::string& filepath) {
+  NameParts out{};
+  auto parts = stringutil::split(filepath, '/');
+  std::string filename = parts.back();
+  parts.pop_back();
+  out.reldir = stringutil::join(parts, "/");
+  parts = stringutil::split(filename, '.');
+  out.basename = parts[0];
+  return out;
+}
+
+/// Construct a filepath from the given pattern by replacing {reldir} and
+/// {basename} of `filepath`
+std::string substitute_path_pattern(const std::string& pattern,
+                                    const std::string& filepath) {
+  auto name_parts = splitpath(filepath);
+  std::string result = pattern;
+  result = stringutil::replace(result, "{reldir}", name_parts.reldir);
+  result = stringutil::replace(result, "{basename}", name_parts.basename);
+  return result;
+}
+
 struct ProgramOptions {
   std::string command;
   std::vector<std::string> proto_path;
 
   struct CompileOptions {
+    // Path to the input file to compile. May be a source file or a header
     std::string source_filepath;
-    std::string binary_outpath;
-    std::string proto_outpath;
+
+    // Pattern indicating how to find the input proto for synchronization
+    // in the form of "{relpath}/{basename}.proto"
     std::string proto_inpath;
+
+    // Pattern indicating how to construct the output path for the proto to
+    // write, in the form of "{relpath}/{basename}.proto"
+    std::string proto_outpath;
+
+    // Pattern indicating how to construct the output path for the serialized
+    // file descriptor to write, in the form of "{relpath}/{basename}.pb3"
+    std::string binary_outpath;
+
+    // If specified, these filters are used to restrict
+    // which header files are processed for message definitions. Each entry
+    // is a (possibly negated) regex pattern. A struct/enum will be processed
+    // if the header containing it matches an inclusion pattern. Patterns are
+    // matched in order with the latest matching pattern taking priority.
+    // If not specified, then only those defined in source_filepath are
+    // processed.
+    std::vector<std::string> source_patterns;
+
+    // If specified, these are used to restrict which messages and enums are
+    // included in the generated descriptors. Each entry is a regex pattern.
+    // a struct or enum is included if matches an inclusion pattern and is
+    // not excluded by a later exclusion pattern.
+    std::vector<std::string> name_patterns;
+
+    // List of flags passed to libclang to build the translation unit (e.g.
+    // compilation flags).
     std::vector<std::string> clang_options;
   } compile_opts;
 
@@ -204,24 +269,46 @@ void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
 
   compile_parser->add_argument(
       "-b", "--pb3-out", dest=&(opts->compile_opts.binary_outpath),
-      help="The output file where a binary encoded FileDescriptorProto is"
-           " written. This will be processed by protostruct-gen to"
-           " update the .proto file. The default `-` is stdout, and will"
-           " be piped to protostruct-gen");
+      help="The output file pattern where the binary encoded "
+           "FileDescriptorProto is written. The sentinels {reldir} and "
+           "{basename} will be replaced by the relative directory and basename"
+           "of the header or source file which admitted the descriptor");
 
   compile_parser->add_argument(
       "-o", "--proto-out", dest=&(opts->compile_opts.proto_outpath),
-      help="The output file where a binary encoded FileDescriptorProto is"
-           " written. This will be processed by protostruct-gen to"
-           " update the .proto file. The default `-` is stdout, and will"
-           " be piped to protostruct-gen");
+      help="The output file pattern where a textual .proto is"
+           " written. The sentinels {reldir} and "
+           "{basename} will be replaced by the relative directory and basename"
+           "of the header or source file which admitted the descriptor");
 
   compile_parser->add_argument(
       "-i", "--proto-in", dest=&(opts->compile_opts.proto_inpath),
       help="If provided, this .proto is used to initialize the file descriptor"
            "prior to compiling the input. Otherwise, if the output .proto"
            "exists, then it will be used. This option can be used to preserve"
-           "manual edits in the generated proto.");
+           "manual edits in the generated proto. The sentinels {reldir} and "
+           "{basename} will be replaced by the relative directory and basename"
+           "of the header or source file which admitted the descriptor");
+
+  compile_parser->add_argument(
+      "-s", "--source-patterns", dest=&(opts->compile_opts.source_patterns),
+      nargs="+",
+      help = "If specified, these filters are used to restrict which header "
+      "files are processed for message definitions. Each entry is a "
+      "(possibly negated) regex pattern. A struct/enum will be processed if "
+      "the header containing it matches an inclusion pattern. Patterns are "
+      "matched in order with the latest matching pattern taking priority. If "
+      "not specified, then only those defined in source_filepath are "
+      "processed.");
+
+
+  compile_parser->add_argument(
+      "-n", "--name-patterns", dest=&(opts->compile_opts.name_patterns),
+      nargs="+",
+      help="If specified, these are used to restrict which messages and enums"
+      " are included in the generated descriptors. Each entry is a regex"
+      " pattern. A struct or enum is included if matches an inclusion pattern"
+      " and is not excluded by a later exclusion pattern.");
 
   compile_parser->add_argument(
       "remainder", nargs=argue::REMAINDER,
@@ -252,18 +339,31 @@ void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
   // clang-format on
 }
 
+/// Base class for different visitors. It allows us to use polymorphism for
+/// improved type safety and readabilty when dispatching visitors through
+/// clangs C-API. It works together with visit_tree, below, to conveniently
+/// dispatch one of our visitors on a subtree of the AST.
 class ClangVisitor {
  public:
+  /// This is the (virtual) member which does the actual work. It does not
+  /// include a "client_data" pointer because that pointer is the "this"
+  /// pointer of this object.
   virtual CXChildVisitResult visit(CXCursor c, CXCursor parent) = 0;
 
+  /// Called by visit_tree at the conclusion of the visitation. Can be used
+  /// to do any "flush" work, depending on the visitor.
   virtual void finish_visit() {}
 
+  /// This is the callback supplied to the clang visitChildren() function. It
+  /// simply casts the untyped "client_data" to a pointer of this class and then
+  /// calls the visit() member function.
   static CXChildVisitResult Callback(CXCursor c, CXCursor parent,
                                      CXClientData client_data) {
     return reinterpret_cast<ClangVisitor*>(client_data)->visit(c, parent);
   }
 };
 
+/// Dispatch a visitor of any type on the AST subtree described by `cursor`.
 template <class VisitorType, class... Args>
 void visit_tree(CXCursor cursor, Args&&... args) {
   VisitorType visitor{std::forward<Args>(args)...};
@@ -284,6 +384,9 @@ class DebugVisitor : public ClangVisitor {
   }
 };
 
+/// Visitor for enumeration values. Ignores all cursors other than
+/// EnumConstantDecl, and in those cases add a new value to the currently active
+/// enumeration in the descriptor we are constructing.
 class EnumVisitor : public ClangVisitor {
  public:
   explicit EnumVisitor(google::protobuf::EnumDescriptorProto* proto,
@@ -323,7 +426,7 @@ class EnumVisitor : public ClangVisitor {
       auto* location = find_location(file_proto_, {5, enumidx_, 2, value_idx});
       std::string stripped_comment = strip_comment_prefix(comment);
 
-      // TODO(josh): this is a hack, use clang_Curosr_getCommentRange to
+      // TODO(josh): this is a hack, use clang_Cursor_getCommentRange to
       // determine if it's leading or trailing
       if (stringutil::startswith(comment, "//!<") ||
           stringutil::startswith(comment, "///<")) {
@@ -343,10 +446,14 @@ class EnumVisitor : public ClangVisitor {
   google::protobuf::FileDescriptorProto* file_proto_;
 };
 
+/// If `needle` is an enumeration already existing in `proto`, then return
+/// a mutable pointer to it. Otherwise, create it in `proto`, and return
+/// a mutable pointer to the new enuemration.
 google::protobuf::EnumDescriptorProto* find_enum(
     google::protobuf::FileDescriptorProto* proto, std::string needle,
     int* found_idx) {
   std::string needle_stripped;
+  // TODO(josh): make this generic
   if (needle.substr(0, 2) == "dw") {
     needle_stripped = needle.substr(2);
   } else {
@@ -358,6 +465,7 @@ google::protobuf::EnumDescriptorProto* find_enum(
         proto->mutable_enum_type(idx);
     std::string candidate_name = candidate_proto->name();
     std::string candidate_name_stripped;
+    // TODO(josh): make this generic
     if (candidate_name.substr(0, 2) == "dw") {
       candidate_name_stripped = candidate_name.substr(2);
     } else {
@@ -596,33 +704,80 @@ std::string normalize_type_name(const std::string& type_name) {
   return stringutil::split(type_name, '.').back();
 }
 
+struct InclusionFilter {
+  explicit InclusionFilter(const std::string& pattern, bool exclude = false)
+      : pattern{pattern}, regex{pattern}, exclude{exclude} {}
+
+  std::string pattern;
+  std::regex regex;
+
+  /// If matching this pattern should *exclude* (versus include) the candidate
+  /// string.
+  bool exclude;
+};
+
 /// Shared state that is needed at all depths of the visitation
 class VisitorContext {
  public:
-  VisitorContext(CXTranslationUnit tunit, const std::string source_filepath,
-                 google::protobuf::FileDescriptorProto* file_proto)
+  VisitorContext(CXTranslationUnit tunit,
+                 const std::vector<std::string>& source_patterns,
+                 google::protobuf::DescriptorDatabase* descr_db,
+                 const std::string proto_inpattern,
+                 const std::string proto_outpattern)
       : tunit_{tunit},
-        source_filepath_{source_filepath},
-        file_proto_{file_proto} {
+        descr_db_{descr_db},
+        proto_inpattern_{proto_inpattern},
+        proto_outpattern_{proto_outpattern} {
     (void)tunit_;
-    file_of_interest_ = clang_getFile(tunit, source_filepath.c_str());
-    fd_ = open(source_filepath_.c_str(), O_RDONLY);
-    PLOG_IF(FATAL, fd_ == -1) << "Failed to open" << source_filepath_;
-    int err = fstat(fd_, &statbuf_);
-    PLOG_IF(FATAL, err) << "Failed to stat" << source_filepath_;
-    void* memblock =
-        mmap(NULL, statbuf_.st_size, PROT_READ, MAP_SHARED, fd_, 0);
-    PLOG_IF(FATAL, memblock == MAP_FAILED)
-        << "Failed to mmap" << source_filepath_;
-    memblock_ = reinterpret_cast<char*>(memblock);
+
+    for (const auto& pattern : source_patterns) {
+      if (pattern.empty()) {
+        continue;
+      }
+      VLOG(1) << "Compiling regex pattern: " << pattern;
+      if (pattern[0] == '!') {
+        source_filters_.emplace_back(pattern.substr(1), true);
+      } else {
+        source_filters_.emplace_back(pattern);
+      }
+    }
   }
 
-  ~VisitorContext() {
-    munmap(memblock_, statbuf_.st_size);
-    close(fd_);
+  ~VisitorContext() {}
+
+  bool should_visit(const std::string& filename) {
+    auto iter = matched_files_.find(filename);
+    if (iter != matched_files_.end()) {
+      if (!iter->second) {
+        return false;
+      }
+      return !iter->second->exclude;
+    }
+
+    bool visit_me = false;
+    const InclusionFilter* matched_filter = nullptr;
+    for (const auto& filter : source_filters_) {
+      // If the filter matches, then apply the inclusion rule
+      if (std::regex_match(filename, filter.regex)) {
+        visit_me = !filter.exclude;
+        matched_filter = &filter;
+      }
+    }
+
+    matched_files_[filename] = matched_filter;
+    return visit_me;
   }
 
-  std::string get_source(const CXSourceRange& range) {
+  /// Called when the FileVisitor chooses visit a cursor
+  void note_visit(const std::string& filename) {
+    if (source_filepath_ != filename) {
+      source_filepath_ = filename;
+      file_proto_.reset();
+    }
+  }
+
+  std::string get_source(CXCursor cursor) {
+    CXSourceRange range = clang_getCursorExtent(cursor);
     CXSourceLocation begin = clang_getRangeStart(range);
     CXSourceLocation end = clang_getRangeEnd(range);
     CXFile cxFile;
@@ -631,19 +786,40 @@ class VisitorContext {
     clang_getExpansionLocation(begin, &cxFile, 0, 0, &beginOff);
     clang_getExpansionLocation(end, 0, 0, 0, &endOff);
 
-    LOG_IF(FATAL, endOff > statbuf_.st_size)
-        << "File size " << statbuf_.st_size
-        << "is less than the cursor terminal offset of" << endOff;
+    std::string filename = drop_cxstring(clang_getFileName(cxFile));
+    std::string spelling = drop_cxstring(clang_getCursorSpelling(cursor));
 
-    return std::string{memblock_ + beginOff, endOff - beginOff};
-  }
+    size_t size{0};
+    const char* memblock = clang_getFileContents(tunit_, cxFile, &size);
+    LOG_IF(FATAL, !memblock) << "Failed to get buffer for file " << filename;
 
-  CXFile file_of_interest() {
-    return file_of_interest_;
+    LOG_IF(FATAL, endOff > size)
+        << "File size " << size
+        << " is less than the cursor terminal offset of " << endOff
+        << " in file " << filename << " for cursor " << spelling;
+
+    return std::string{memblock + beginOff, endOff - beginOff};
   }
 
   google::protobuf::FileDescriptorProto* file_proto() {
-    return file_proto_;
+    if (!file_proto_) {
+      auto iter = fileproto_map_.find(source_filepath_);
+      if (iter == fileproto_map_.end()) {
+        file_proto_ = std::make_shared<google::protobuf::FileDescriptorProto>();
+        fileproto_map_.insert(std::make_pair(source_filepath_, file_proto_));
+        std::string proto_inpath =
+            substitute_path_pattern(proto_inpattern_, source_filepath_);
+        if (!descr_db_->FindFileByName(proto_inpath, file_proto_.get())) {
+          LOG(WARNING) << "Failed to import " << proto_inpath;
+        }
+        file_proto_->mutable_options()
+            ->MutableExtension(protostruct::fileopts)
+            ->set_header_filepath(source_filepath_);
+      } else {
+        file_proto_ = iter->second;
+      }
+    }
+    return file_proto_.get();
   }
 
   std::map<std::string, std::string>& macros() {
@@ -668,38 +844,75 @@ class VisitorContext {
     }
   }
 
+  void log_visits() {
+    std::stringstream msg;
+    for (auto& pair : matched_files_) {
+      if (pair.second) {
+        msg << "\n  " << pair.first << " (" << !pair.second->exclude
+            << "): " << pair.second->pattern;
+      } else {
+        msg << "\n  " << pair.first << " (false): ";
+      }
+    }
+    LOG(INFO) << "visted files:\n  " << msg.str();
+  }
+
+  std::map<std::string, std::string> write_protos() {
+    std::map<std::string, std::string> out;
+    for (const auto& pair : fileproto_map_) {
+      LOG(INFO) << "Writing " << pair.first;
+      std::string binary_outpath =
+          substitute_path_pattern(proto_outpattern_, pair.first);
+      std::ofstream outfile{binary_outpath};
+      if (!outfile.good()) {
+        LOG(FATAL) << "Failed to open " << binary_outpath << " for write";
+        continue;
+      }
+      out[pair.first] = binary_outpath;
+      pair.second->SerializeToOstream(&outfile);
+    }
+    return out;
+  }
+
  private:
   /// The translation unit built by compiling the header
   CXTranslationUnit tunit_;
 
-  /// The path to the header file that was compiled
+  /// The path to the header file we are currently visiting
   std::string source_filepath_;
 
-  /// Pointer to the mutable file descriptor proto that we are building,
-  /// possibly containing information digested from an "sychronization"
-  /// .proto
-  google::protobuf::FileDescriptorProto* file_proto_;
-
-  /// Handle to the file object for the header file within the translation
-  /// unit.
-  CXFile file_of_interest_;
-
-  /// File descriptor for the header file, opened and mapped for read
-  int fd_;
-
-  /// Pointer to the first byte of mapped memory for the source file, providing
-  /// access to the bytes required to pluck out strings by offset
-  char* memblock_;
-
-  /// stat buffer containing filesystem statistics of the header file we are
-  /// processing.
-  struct stat statbuf_;
+  /// Pointer to the mutable file descriptor proto that we are building, for the
+  /// file that we are currently visiting, and possibly containing information
+  /// digested from an "sychronization" .proto
+  std::shared_ptr<google::protobuf::FileDescriptorProto> file_proto_;
 
   /// Macros defined in this file
   std::map<std::string, std::string> macros_;
 
   /// Macros that were referenced as array lenghts
   std::set<std::string> capname_macros_;
+
+  /// A list of patterns to match against filenames
+  std::vector<InclusionFilter> source_filters_;
+
+  /// Map included files to the pattern they matched for inclusion
+  std::map<std::string, const InclusionFilter*> matched_files_;
+
+  /// Map from include file to mutable FileDescriptor's for that file
+  std::map<std::string, std::shared_ptr<google::protobuf::FileDescriptorProto>>
+      fileproto_map_;
+
+  /// Proto descriptor database from which to get input protos for
+  /// synchronization
+  google::protobuf::DescriptorDatabase* descr_db_;
+
+  /// Pattern string used to find input .proto for synchronization, given the
+  /// corresponding name of a .h
+  std::string proto_inpattern_;
+
+  /// Pattern string used to construct output .proto filepath, given the
+  /// corresponding name of a .h
+  std::string proto_outpattern_;
 };
 
 /// Visit the field declaration for a fixed-length array and look for a
@@ -713,8 +926,7 @@ class FieldVisitor : public ClangVisitor {
 
   CXChildVisitResult visit(CXCursor c, CXCursor parent) override {
     if (clang_getCursorKind(c) == CXCursor_IntegerLiteral) {
-      CXSourceRange range = clang_getCursorExtent(c);
-      std::string capname = ctx_->get_source(range);
+      std::string capname = ctx_->get_source(c);
       bool is_macro = ctx_->note_capname(capname);
       if (is_macro) {
         proto_->mutable_options()
@@ -746,6 +958,8 @@ bool fieldname_is_lengthfield(const std::string& fieldname,
   return false;
 }
 
+/// Visit each field declaration of a struct and conver it to a field descriptor
+/// in the message DescriptorProto `proto`.
 class MessageVisitor : public ClangVisitor {
  public:
   explicit MessageVisitor(google::protobuf::DescriptorProto* proto, int msgidx,
@@ -970,6 +1184,10 @@ class MessageVisitor : public ClangVisitor {
       output_fields_;
 };
 
+/// If a message named `needle` already exists in the FileDesciptorProto
+/// `proto`, then return a mutable pointer to it's message DescriptorProto.
+/// Otherwise, create a new message DesciptorProto for named `needle` and then
+/// return a mutable pointer to the newly created descriptor.
 google::protobuf::DescriptorProto* find_message(
     google::protobuf::FileDescriptorProto* proto, std::string needle,
     int* found_idx) {
@@ -1023,11 +1241,15 @@ class FileVisitor : public ClangVisitor {
     unsigned int cursor_column{0};
     clang_getSpellingLocation(cursor_location, &cursor_file, &cursor_line,
                               &cursor_column, nullptr);
-    if (!clang_File_isEqual(ctx_->file_of_interest(), cursor_file)) {
-      // This cursor is from some (possibly transitive) include file, so we
-      // wont worry about any of the stuff defined in it.
+
+    std::string filename = drop_cxstring(clang_getFileName(cursor_file));
+    if (filename.substr(0, 2) == "./") {
+      filename = filename.substr(2);
+    }
+    if (!ctx_->should_visit(filename)) {
       return CXChildVisit_Continue;
     }
+    ctx_->note_visit(filename);
 
     std::stringstream strm{};
     strm << clang_getCursorSpelling(c);
@@ -1035,6 +1257,17 @@ class FileVisitor : public ClangVisitor {
     CXCursorKind kind = clang_getCursorKind(c);
 
     switch (kind) {
+      case CXCursor_InclusionDirective: {
+        CXFile included_file = clang_getIncludedFile(c);
+        std::string included_filename =
+            drop_cxstring(clang_getFileName(included_file));
+        ctx_->file_proto()
+            ->mutable_options()
+            ->MutableExtension(protostruct::fileopts)
+            ->add_included_files(included_filename);
+        break;
+      }
+
       case CXCursor_EnumDecl: {
         auto pair = visited_enums_.insert(cursor_spelling);
         if (!pair.second) {
@@ -1118,7 +1351,7 @@ class FileVisitor : public ClangVisitor {
         std::stringstream strm{};
         strm << clang_getCursorSpelling(c);
         std::string name = strm.str();
-        std::string defn = ctx_->get_source(clang_getCursorExtent(c));
+        std::string defn = ctx_->get_source(c);
         ctx_->macros()[name] = defn;
         break;
       }
@@ -1130,17 +1363,15 @@ class FileVisitor : public ClangVisitor {
     return CXChildVisit_Recurse;
   }
 
+  void finish_visit() override {
+    ctx_->log_visits();
+  }
+
  private:
   std::set<std::string> visited_enums_;
   std::set<std::string> visited_messages_;
   VisitorContext* ctx_;
 };
-
-void process_file(CXTranslationUnit tunit, std::string source_filepath,
-                  google::protobuf::FileDescriptorProto* file_proto) {
-  VisitorContext ctx{tunit, source_filepath, file_proto};
-  visit_tree<FileVisitor>(clang_getTranslationUnitCursor(tunit), &ctx);
-}
 
 // NOTE(josh): we don't want to use limits.h because we aren't going to be
 // running this on the system we compile for. Also PATH_MAX is a lie and the
@@ -1204,12 +1435,9 @@ int compile_main(const ProgramOptions& popts) {
   }
 
   auto& copts = popts.compile_opts;
-  std::string proto_outpath = copts.proto_outpath;
-  if (proto_outpath.empty()) {
-    auto name_parts = stringutil::split(copts.source_filepath, '.');
-    name_parts.pop_back();
-    name_parts.push_back("proto");
-    proto_outpath = stringutil::join(name_parts, ".");
+  std::string proto_outpattern = copts.proto_outpath;
+  if (proto_outpattern.empty()) {
+    proto_outpattern = "{reldir}/{basename}.proto";
   }
 
   std::string proto_inpath = copts.proto_inpath;
@@ -1217,7 +1445,7 @@ int compile_main(const ProgramOptions& popts) {
     // If a synchronization proto was not provided, default to the output
     // proto. That way, if the output proto already exists, we will read
     // it in and preserve any choices that were made.
-    proto_inpath = proto_outpath;
+    proto_inpath = proto_outpattern;
   }
 
   MyErrorCollector error_collector{};
@@ -1225,79 +1453,70 @@ int compile_main(const ProgramOptions& popts) {
       &source_tree};
   descr_db.RecordErrorsTo(&error_collector);
 
-  google::protobuf::FileDescriptorProto fileproto{};
-  if (!descr_db.FindFileByName(proto_inpath, &fileproto)) {
-    if (proto_inpath == proto_outpath) {
-      // If the input proto for synchronization is the same as the output
-      // proto, then it is not a an error if the output proto doesn't exist.
-      // On the first invocation, we would expect it not to exist.
-      LOG(WARNING) << "Failed to import " << proto_inpath;
-    } else {
-      // If the input proto for synchronization is anything else, then the user
-      // explicitly provided a filename and almost certainly expects it to exist
-      // (and thus, it is an error if that file doesn't exist).
-      LOG(FATAL) << "Failed to import " << proto_inpath;
-      exit(1);
-    }
+  CXIndex index = clang_createIndex(0, 0);
+  CXTranslationUnit tunit{};
+
+  std::vector<const char*> clang_argv;
+  clang_argv.reserve(copts.clang_options.size() + 10);
+  for (const auto& arg : copts.clang_options) {
+    clang_argv.push_back(&arg[0]);
   }
 
-  fileproto.mutable_options()
-      ->MutableExtension(protostruct::fileopts)
-      ->set_header_filepath(copts.source_filepath);
-
-  if (!stringutil::endswith(copts.source_filepath, ".proto")) {
-    CXIndex index = clang_createIndex(0, 0);
-    CXTranslationUnit tunit{};
-
-    std::vector<const char*> clang_argv;
-    clang_argv.reserve(copts.clang_options.size() + 10);
-    for (const auto& arg : copts.clang_options) {
-      clang_argv.push_back(&arg[0]);
-    }
-
-    // TODO(josh): don't bake these here.
-    // NOTE(josh): previously used -std=c++11 and -language=c++ but would fail
-    // to parse test_messages.h on clang-13
-    clang_argv.push_back("-std=c99");
-    clang_argv.push_back("-language=c");
+  // TODO(josh): don't bake these here.
+  // NOTE(josh): previously used -std=c++11 and -language=c++ but would fail
+  // to parse test_messages.h on clang-13
+  clang_argv.push_back("-std=c99");
+  clang_argv.push_back("-language=c");
 
 #if CINDEX_VERSION == CINDEX_VERSION_ENCODE(0, 50)
-    // NOTE(josh): clang8 can't seem to find standard headers
-    clang_argv.push_back("-isystem");
-    clang_argv.push_back("/usr/lib/llvm-8/lib/clang/8.0.0/include");
-    clang_argv.push_back("-isystem");
-    clang_argv.push_back("/usr/lib/llvm-8/lib/clang/8.0.1/include");
+  // NOTE(josh): clang8 can't seem to find standard headers
+  clang_argv.push_back("-isystem");
+  clang_argv.push_back("/usr/lib/llvm-8/lib/clang/8.0.0/include");
+  clang_argv.push_back("-isystem");
+  clang_argv.push_back("/usr/lib/llvm-8/lib/clang/8.0.1/include");
 #endif
 
-    CXErrorCode code = clang_parseTranslationUnit2(
-        index, copts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
-        nullptr, 0, CXTranslationUnit_DetailedPreprocessingRecord, &tunit);
+  CXErrorCode code = clang_parseTranslationUnit2(
+      index, copts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
+      nullptr, 0, CXTranslationUnit_DetailedPreprocessingRecord, &tunit);
 
-    if (code != CXError_Success) {
-      LOG(ERROR) << "Failed to build translation unit for "
-                 << copts.source_filepath << " code: " << code
-                 << " argv:" << stringutil::join(clang_argv, " ") << "\n";
-    }
-
-    if (clang_getNumDiagnostics(tunit)) {
-      LOG(WARNING) << "CINDEX_VERSION" << CINDEX_VERSION_MAJOR << "."
-                   << CINDEX_VERSION_MINOR;
-    }
-    for (size_t idx = 0; idx < clang_getNumDiagnostics(tunit); idx++) {
-      CXDiagnostic diag = clang_getDiagnostic(tunit, idx);
-      LOG(WARNING) << clang_getDiagnosticSpelling(diag);
-      clang_disposeDiagnostic(diag);
-    }
-
-    if (code != CXError_Success) {
-      exit(1);
-    }
-
-    process_file(tunit, copts.source_filepath, &fileproto);
-
-    clang_disposeTranslationUnit(tunit);
-    clang_disposeIndex(index);
+  if (code != CXError_Success) {
+    LOG(ERROR) << "Failed to build translation unit for "
+               << copts.source_filepath << " code: " << code
+               << " argv:" << stringutil::join(clang_argv, " ") << "\n";
   }
+
+  if (clang_getNumDiagnostics(tunit)) {
+    LOG(WARNING) << "CINDEX_VERSION" << CINDEX_VERSION_MAJOR << "."
+                 << CINDEX_VERSION_MINOR;
+  }
+  for (size_t idx = 0; idx < clang_getNumDiagnostics(tunit); idx++) {
+    CXDiagnostic diag = clang_getDiagnostic(tunit, idx);
+    LOG(WARNING) << clang_getDiagnosticSpelling(diag);
+    clang_disposeDiagnostic(diag);
+  }
+
+  if (code != CXError_Success) {
+    exit(1);
+  }
+
+  auto source_patterns = copts.source_patterns;
+  if (source_patterns.empty()) {
+    source_patterns.emplace_back(copts.source_filepath);
+  }
+
+  std::string binary_outpattern = copts.binary_outpath;
+  if (binary_outpattern.empty()) {
+    binary_outpattern = stringutil::split(proto_outpattern, '.')[0] + ".pb3";
+  }
+
+  VisitorContext ctx{tunit, source_patterns, &descr_db, proto_inpath,
+                     binary_outpattern};
+  visit_tree<FileVisitor>(clang_getTranslationUnitCursor(tunit), &ctx);
+  auto binpairs = ctx.write_protos();
+
+  clang_disposeTranslationUnit(tunit);
+  clang_disposeIndex(index);
 
   // NOTE(josh): See below as an example of how to get a FileDescriptor from
   // the FileDescriptorProto and how to access comments.
@@ -1329,29 +1548,19 @@ int compile_main(const ProgramOptions& popts) {
   //   }
   // }
 
-  std::string binary_outpath = copts.binary_outpath;
-  bool binary_is_temp = false;
-  if (binary_outpath.empty()) {
-    binary_is_temp = true;
-    binary_outpath = "temp-XXXXXX.pb3";
-    int fd = mkstemps(&binary_outpath[0], 4);
-    PLOG_IF(FATAL, fd == -1) << "Failed to create a temporary file in cwd";
+  for (auto& pair : binpairs) {
+    std::string header_filepath = pair.first;
+    std::string binary_outpath = pair.second;
+    std::string proto_outpath =
+        substitute_path_pattern(proto_outpattern, pair.first);
+    VLOG(1) << binary_outpath << " --> " << proto_outpath;
+    int retcode = python_gen({binary_outpath, "--proto-out", proto_outpath});
+    if (retcode != 0) {
+      return retcode;
+    }
   }
 
-  std::ofstream outfile{binary_outpath};
-  if (!outfile.good()) {
-    LOG(FATAL) << "Failed to open " << binary_outpath << " for write";
-    return 1;
-  }
-  fileproto.SerializeToOstream(&outfile);
-
-  int retcode = python_gen({binary_outpath, "--proto-out", proto_outpath});
-
-  if (binary_is_temp) {
-    unlink(&binary_outpath[0]);
-  }
-
-  return retcode;
+  return 0;
 }
 
 int gen_main(const ProgramOptions& popts) {

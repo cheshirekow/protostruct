@@ -41,6 +41,10 @@ message FileOptions {
   // #defines. They aren't currently used by any generator other than the
   // reconstruction one.
   repeated string capacity_macros = 2;
+
+  // If the header file uses #include then this list will contain all of the
+  // included files which protostruct infers to contain message definitions
+  repeated string included_files = 3;
 }
 
 extend google.protobuf.FileOptions {

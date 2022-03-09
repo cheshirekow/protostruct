@@ -15,12 +15,12 @@ argparser.add_argument(
     "--truth-file",
     help="The file containing the true contents")
 argparser.add_argument(
-  "--query-file",
-  help="The file containing content which should match truth_file")
+    "--query-file",
+    help="The file containing content which should match truth_file")
 argparser.add_argument(
-  "--fix", action="store_true",
-  help="If the teset would otherwise fail, then copy truth_file to query_file"
-       " and exit with success")
+    "--fix", action="store_true",
+    help="If the teset would otherwise fail, then copy truth_file to query_file"
+         " and exit with success")
 args = argparser.parse_args()
 
 
@@ -35,9 +35,10 @@ except FileNotFoundError:
   pass
 
 difflines = list(
-  difflib.unified_diff(
-    query_lines, truth_lines, fromfile=args.query_file, tofile=args.truth_file,
-    n=3, lineterm='\n')
+    difflib.unified_diff(
+        query_lines, truth_lines, fromfile=args.query_file,
+        tofile=args.truth_file, n=3, lineterm='\n'
+    )
 )
 
 if not difflines:

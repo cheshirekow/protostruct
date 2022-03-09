@@ -129,11 +129,13 @@ genrule(
 protostruct_compile(
   name = "protoc-test_messages",
   enforce = False,
-  header = "test/test_messages.h",
   pb3_out = "test/test_messages.pb3",
   proto_out = "test/test_messages.proto",
   proto_path = ["tangent/protostruct"],
   proto_sync = "test/test_in.proto",
+  source_patterns = [r"tangent/.*\.h"],
+  sourcefile = "test/test_messages.c",
+  deps = ["test/test_messages.h"],
 )
 
 protostruct_gen(

@@ -12,6 +12,10 @@ google's `protocol buffer`__ (protobuf) as well as `cereal`__ bindings
 Use `protostruct` to add modern extensible serialization and over-the-wire
 messaging to your existing native "pure" C APIs.
 
+Protostruct uses the protocol buffer IDL as the canonical representation of
+the message definition, but includes tooling to reverse the message description
+from existing C structures.
+
 Protostruct works in two steps `compile` and `gen`.
 
 .. __: https://developers.google.com/protocol-buffers
@@ -24,7 +28,8 @@ compile (`FileDescriptorProto`)
 `protostruct` can process a C header file (`foo.h`) and generate a
 description of corresponding google protocol buffers for each enum or struct
 defined in that header file. This description is in the form of a protobuf
-IDL file (.proto) or a serialized `FileDescriptorProto` (with some extensions).
+IDL file (.proto) or a serialized `FileDescriptorProto` (with some extensions,
+in either case).
 
 If a corresponding .proto file already exists, protostruct can parse it and
 use it to provide hints for certain decisions in the conversion process. In
