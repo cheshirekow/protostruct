@@ -622,9 +622,9 @@ def main():
 
   args = argparser.parse_args()
 
-  filedescr = descriptor_pb2.FileDescriptorProto()
+  fileset = descriptor_pb2.FileDescriptorSet()
   with io.open(args.infile, "rb") as infile:
-    filedescr.ParseFromString(infile.read())
+    fileset.ParseFromString(infile.read())
 
   zipfile_path, package_path = get_zipfile_path(
       os.path.dirname(protostruct.__file__))
@@ -638,87 +638,90 @@ def main():
     tpldir = os.path.join(thisdir, "templates")
     jenv = jinja2.Environment(loader=jinja2.FileSystemLoader(tpldir))
 
-  ctx = TemplateContext(filedescr)
-  jenv.globals.update(
-      enumerate=enumerate,
-      ctx=ctx,
-      format_reserved=format_reserved,
-      fqn_typename_cpp=ctx.fqn_typename_cpp,
-      get_arraysize=get_arraysize,
-      get_comment=ctx.get_comment,
-      get_cpp_namespace=ctx.get_cpp_namespace,
-      get_emit_fun=ctx.get_emit_fun,
-      get_enum_columns=get_enum_columns,
-      get_field_columns=ctx.get_field_columns,
-      get_header_filepath=get_header_filepath,
-      get_label=get_label,
-      get_lengthfield=get_lengthfield,
-      get_packed_tag=get_packed_tag,
-      get_protostruct_options=get_protostruct_options,
-      get_tag=get_tag,
-      get_typename=ctx.get_typename,
-      has_message_field=has_message_field,
-      has_packed_field=has_packed_field,
-      is_enum=is_enum,
-      is_message=is_message,
-      is_packed=is_packed,
-      is_primitive=is_primitive,
-      is_repeated=is_repeated,
-      tuplize_fielddescr=ctx.tuplize_fielddescr,
-      LABEL_REPEATED=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED,
-      TYPE_MESSAGE=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE,
-  )
+  for filedescr in fileset.file:
+    ctx = TemplateContext(filedescr)
+    jenv.globals.update(
+        enumerate=enumerate,
+        ctx=ctx,
+        format_reserved=format_reserved,
+        fqn_typename_cpp=ctx.fqn_typename_cpp,
+        get_arraysize=get_arraysize,
+        get_comment=ctx.get_comment,
+        get_cpp_namespace=ctx.get_cpp_namespace,
+        get_emit_fun=ctx.get_emit_fun,
+        get_enum_columns=get_enum_columns,
+        get_field_columns=ctx.get_field_columns,
+        get_header_filepath=get_header_filepath,
+        get_label=get_label,
+        get_lengthfield=get_lengthfield,
+        get_packed_tag=get_packed_tag,
+        get_protostruct_options=get_protostruct_options,
+        get_tag=get_tag,
+        get_typename=ctx.get_typename,
+        has_message_field=has_message_field,
+        has_packed_field=has_packed_field,
+        is_enum=is_enum,
+        is_message=is_message,
+        is_packed=is_packed,
+        is_primitive=is_primitive,
+        is_repeated=is_repeated,
+        tuplize_fielddescr=ctx.tuplize_fielddescr,
+        LABEL_REPEATED=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED,
+        TYPE_MESSAGE=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE,
+    )
 
-  gensource = get_header_filepath(filedescr)
-  relpath_outdir = "/".join(gensource.split("/")[:-1])
+    gensource = get_header_filepath(filedescr)
+    if not gensource and filedescr.name:
+      gensource = filedescr.name
+    relpath_outdir = "/".join(gensource.split("/")[:-1])
 
-  if not args.basename:
-    if not gensource:
-      logger.fatal(
-          "No basename specified and no filepath in the FileDescriptor proto")
-    args.basename = gensource.split("/")[-1].split(".")[0]
+    if not args.basename:
+      if not gensource:
+        logger.fatal(
+            "No basename specified and no filepath in the FileDescriptor proto")
+      args.basename = gensource.split("/")[-1].split(".")[0]
 
-  suffixes = []
-  for group in args.templates:
-    suffixes.extend(TEMPLATES[group])
+    suffixes = []
+    for group in args.templates:
+      suffixes.extend(TEMPLATES[group])
 
-  process_pairs = []
-  for suffix in suffixes:
-    outfile_name = args.basename + suffix
-    outfile_dir = os.path.join(args.cpp_root, relpath_outdir)
+    process_pairs = []
+    for suffix in suffixes:
+      outfile_name = args.basename + suffix
+      outfile_dir = os.path.join(args.cpp_root, relpath_outdir)
 
-    if not os.path.exists(outfile_dir):
-      os.makedirs(outfile_dir)
+      if not os.path.exists(outfile_dir):
+        os.makedirs(outfile_dir)
 
-    outfile_path = os.path.join(outfile_dir, outfile_name)
-    template_name = "XXX" + suffix + ".jinja2"
-    process_pairs.append((outfile_path, template_name))
+      outfile_path = os.path.join(outfile_dir, outfile_name)
+      template_name = "XXX" + suffix + ".jinja2"
+      process_pairs.append((outfile_path, template_name))
 
-  if relpath_outdir:
-    include_base = os.path.join(relpath_outdir, args.basename)
-  else:
-    include_base = args.basename
+    if relpath_outdir:
+      include_base = os.path.join(relpath_outdir, args.basename)
+    else:
+      include_base = args.basename
 
-  if args.proto_out:
-    process_pairs.append((args.proto_out, "XXX.proto.jinja2"))
+    if args.proto_out:
+      process_pairs.append((args.proto_out, "XXX.proto.jinja2"))
 
-  for outpath, template_name in process_pairs:
-    if not outpath:
-      continue
+    for outpath, template_name in process_pairs:
+      if not outpath:
+        continue
 
-    template = jenv.get_template(template_name)
-    content = template.render(
-        filedescr=filedescr,
-        include_base=include_base)
-    if outpath == "-":
-      outpath = os.dup(1)
-    outdir = os.path.dirname(outpath)
-    if not os.path.exists(outdir):
-      os.makedirs(outdir)
-    with io.open(outpath, "w", encoding="utf-8") as outfile:
-      outfile.write(content)
-      outfile.write("\n")
-    logger.info("Wrote %s", outpath)
+      template = jenv.get_template(template_name)
+      content = template.render(
+          filedescr=filedescr,
+          include_base=include_base)
+      if outpath == "-":
+        outpath = os.dup(1)
+      outdir = os.path.dirname(outpath)
+      if not os.path.exists(outdir):
+        os.makedirs(outdir)
+      with io.open(outpath, "w", encoding="utf-8") as outfile:
+        outfile.write(content)
+        outfile.write("\n")
+      logger.info("Wrote %s", outpath)
 
 
 if __name__ == "__main__":

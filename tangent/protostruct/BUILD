@@ -126,13 +126,18 @@ genrule(
   """,
 )
 
+proto_library(
+  name = "test_messages_proto_in",
+  srcs = ["sync/test_messages.proto"],
+  import_prefix = "tangent/protostruct/test",
+  strip_import_prefix = "sync",
+  deps = [":descriptor_extensions_proto"],
+)
+
 protostruct_compile(
   name = "protoc-test_messages",
-  enforce = False,
   pb3_out = "test/test_messages.pb3",
-  proto_out = "test/test_messages.proto",
-  proto_path = ["tangent/protostruct"],
-  proto_sync = "test/test_in.proto",
+  proto_sync = ":test_messages_proto_in",
   source_patterns = [r"tangent/.*\.h"],
   sourcefile = "test/test_messages.c",
   deps = ["test/test_messages.h"],
@@ -140,12 +145,14 @@ protostruct_compile(
 
 protostruct_gen(
   name = "protog-test_messages",
-  proto = "test/test_messages.pb3",
+  basenames = ["test/test_messages"],
+  fdset = "test/test_messages.pb3",
   templates = [
     "cpp-simple",
     "cereal",
     "pbwire",
     "pb2c",
+    "proto",
     "recon",
   ],
 )

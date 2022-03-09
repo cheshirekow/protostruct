@@ -5,10 +5,10 @@ syntax = "proto3";
 import "tangent/protostruct/descriptor_extensions.proto";
 package tangent.test;
 
-option (protostruct.fileopts).header_filepath = "tangent/protostruct/test/test_messages.h";
+option (protostruct.fileopts).header_filepath =
+    "tangent/protostruct/test/test_messages.h";
 option (protostruct.fileopts).capacity_macros = "FIELD_B_CAPACITY 12";
 option (protostruct.fileopts).capacity_macros = "FIELD_C_CAPACITY 10";
-
 
 /// This is enum "A"
 enum MyEnumA {
@@ -19,49 +19,45 @@ enum MyEnumA {
 
 /// This is message "A"
 message MyMessageA {
-   sint32 fieldA = 1;  //!< field A
-   double fieldB = 2;  //!< field B
-   uint64 fieldC = 3;  //!< field C
+  sint32 fieldA = 1;   //!< field A
+  double fieldB = 2;   //!< field B
+  uint64 fieldC = 3;   //!< field C
   MyEnumA fieldD = 4;  //!< field D
 }
 
 /// This is message "B"
 message MyMessageB {
-  reserved 1, 3, 8, 12 to 13, 2, 4, 7;
-  MyMessageA fieldA = 5;  //!< field A
+  reserved 1, 3, 8, 12 to 13, 4, 7;
+  MyMessageA fieldA = 2;  //!< field A
 }
 
 /// This is message "C"
 message MyMessageC {
-  reserved 1;
-  repeated MyMessageA fieldA = 3 [(protostruct.fieldopts).capacity=10];
-  repeated      int32 fieldB = 2 [(protostruct.fieldopts).capname="FIELD_B_CAPACITY"];
-  repeated      int32 fieldC = 6 [(protostruct.fieldopts).capname="FIELD_C_CAPACITY"];
+  repeated MyMessageA fieldA = 1 [ (protostruct.fieldopts).capacity = 10 ];
+  repeated int32 fieldB = 2
+      [ packed = true, (protostruct.fieldopts).capname = "FIELD_B_CAPACITY" ];
+  repeated int32 fieldC = 5
+      [ (protostruct.fieldopts).capname = "FIELD_C_CAPACITY" ];
 }
-
 
 message TestFixedArray {
-  repeated double fixedSizedArray = 1 [(protostruct.fieldopts).capacity=10];
+  repeated double fixedSizedArray = 1 [ (protostruct.fieldopts).capacity = 10 ];
 }
-
 
 message TestAlignas {
-  repeated float array = 1 [(protostruct.fieldopts).capacity=4];
+  repeated float array = 1 [ (protostruct.fieldopts).capacity = 4 ];
 }
-
 
 message TestPrimitives {
-   int32 fieldA =  1 [(protostruct.fieldopts).fieldtype="int8_t"];
-   int32 fieldB =  2 [(protostruct.fieldopts).fieldtype="int16_t"];
-   int32 fieldC =  3;
-   int64 fieldD =  4;
-  uint32 fieldE =  5 [(protostruct.fieldopts).fieldtype="uint8_t"];
-  uint32 fieldF =  6 [(protostruct.fieldopts).fieldtype="uint16_t"];
-  uint32 fieldG =  7;
-  uint64 fieldH =  8;
-   float fieldI =  9;
+  int32 fieldA = 1 [ (protostruct.fieldopts).fieldtype = "int8_t" ];
+  int32 fieldB = 2 [ (protostruct.fieldopts).fieldtype = "int16_t" ];
+  int32 fieldC = 3;
+  int64 fieldD = 4;
+  uint32 fieldE = 5 [ (protostruct.fieldopts).fieldtype = "uint8_t" ];
+  uint32 fieldF = 6 [ (protostruct.fieldopts).fieldtype = "uint16_t" ];
+  uint32 fieldG = 7;
+  uint64 fieldH = 8;
+  float fieldI = 9;
   double fieldJ = 10;
-    bool fieldK = 11 [(protostruct.fieldopts).fieldtype="bool"];
+  bool fieldK = 11 [ (protostruct.fieldopts).fieldtype = "bool" ];
 }
-
-

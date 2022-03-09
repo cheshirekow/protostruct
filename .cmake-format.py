@@ -136,6 +136,35 @@ with section("parse"):
       }
     },
 
+    "protostruct_compile": {
+      "kwargs": {
+        "NAME": 1,
+        "SRCFILE": 1,
+        "PB3_OUT": 1,
+        "PROTO_SYNC": 1,
+        "DEPS": "+",
+        "SOURCE_PATTERNS": "+",
+        "NAME_PATTERNS": "+",
+        "CFLAGS": "+"
+      },
+    },
+
+    "protostruct_gen": {
+      "kwargs": {
+        "NAME": 1,
+        "FDSET": 1,
+        "BASENAMES": "+",
+        "TEMPLATES": "+"
+      }
+    },
+
+    "gentest": {
+      "kwargs": {
+        "NAME": 1,
+        "FILES": "+",
+      }
+    },
+
     "check_pyoneline": {
       "pargs": "+",
       "kwargs": {

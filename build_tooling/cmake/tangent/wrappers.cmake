@@ -650,43 +650,147 @@ function(tangent_extract_svg)
 endfunction()
 
 # Use protostruct to generate bindings
-function(protostruct_gen args_PROTO)
-  cmake_parse_arguments(args "" "" "ONLY" ${ARGN})
+function(protostruct_compile)
+  set(onevalue_args "NAME" "SRCFILE" "PB3_OUT" "PROTO_SYNC")
+  set(mvalue_args "DEPS" "SOURCE_PATTERNS" "NAME_PATTERNS" "CFLAGS")
+  cmake_parse_arguments(args "" "${onevalue_args}" "${mvalue_args}" ${ARGN})
 
-  if(NOT ${args_PROTO} MATCHES "(.*).proto")
-    message(FATAL_ERROR "invalid protofile ${args_PROTO}")
+  file(RELATIVE_PATH outdir "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
+
+  set(cmd "$<TARGET_FILE:protostruct>" compile ${outdir}/${args_SRCFILE})
+  set(deps "${args_SRCFILE}")
+  if(args_PROTO_SYNC)
+    list(APPEND cmd "--proto-in" "${args_PROTO_SYNC}")
+    list(APPEND deps "${args_PROTO_SYNC}")
   endif()
-  set(basename ${CMAKE_MATCH_1})
 
-  unset(outs)
-  unset(only_flags)
-  if(args_ONLY)
-    set(only_flags ${args_ONLY})
-    foreach(groupname ${args_ONLY})
-      if(groupname STREQUAL "cpp-simple")
-        list(APPEND outs #
-             ${CMAKE_CURRENT_BINARY_DIR}/${basename}-simple.h
-             ${CMAKE_CURRENT_BINARY_DIR}/${basename}-simple.cc)
-      else()
-        message(FATAL_ERROR "protostruct_gen not implemented for ${groupname}")
-      endif()
-    endforeach()
-  else()
-    message(FATAL_ERROR "protostruct_gen not implemented without ONLY")
+  list(APPEND cmd "--pb3-out" "${CMAKE_CURRENT_BINARY_DIR}/${args_PB3_OUT}")
+
+  if(args_SOURCE_PATTERNS)
+    list(APPEND cmd "--source-patterns" ${args_SOURCE_PATTERNS})
+  endif()
+  if(args_NAME_PATTERNS)
+    list(APPEND cmd "--name-patterns" ${args_NAME_PATTERNS})
+  endif()
+
+  list(APPEND cmd "--" "-I" ".")
+  if(args_CFLAGS)
+    list(APPEND cmd ${args_CFLAGS})
   endif()
 
   add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${args_PB3_OUT}"
+    DEPENDS ${deps} protostruct
+    COMMAND echo ${cmd}
+    COMMAND ${cmd}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+  add_custom_target(${args_NAME} DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${args_PB3_OUT}")
+endfunction()
+
+function(protostruct_gen)
+  set(onevalue_args "NAME" "FDSET")
+  set(mvalue_args "BASENAMES" "TEMPLATES")
+  cmake_parse_arguments(args "" "${onevalue_args}" "${mvalue_args}" ${ARGN})
+
+  file(RELATIVE_PATH outdir "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+  # TODO(josh): just take the fullpath as input
+  set(fdset "${outdir}/${args_FDSET}")
+
+  set(outs)
+  foreach(basename ${args_BASENAMES})
+    foreach(groupname ${args_TEMPLATES})
+      if(groupname STREQUAL "cpp-simple")
+        list(APPEND outs "${basename}-simple.h" "${basename}-simple.cc")
+      endif()
+      if(groupname STREQUAL "recon")
+        list(APPEND outs "${basename}-recon.h")
+      endif()
+      if(groupname STREQUAL "pb2c")
+        list(APPEND outs "${basename}.pb2c.h" "${basename}.pb2c.cc")
+      endif()
+      if(groupname STREQUAL "pbwire")
+        list(APPEND outs "${basename}.pbwire.h" "${basename}.pbwire.c")
+      endif()
+      if(groupname STREQUAL "proto")
+        list(APPEND outs "${basename}.proto")
+      endif()
+      if(groupname STREQUAL "cereal")
+        list(APPEND outs "${basename}.cereal.h")
+      endif()
+    endforeach()
+  endforeach()
+  set(outpaths)
+  foreach(out ${outs})
+    list(APPEND outpaths "${outdir}/${out}")
+  endforeach()
+
+  add_custom_command(
     OUTPUT ${outs}
-    DEPENDS ${args_PROTO} protostruct
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${args_FDSET}" protostruct
+    COMMAND "$<TARGET_FILE:protostruct>" generate
+            --cpp-root ${CMAKE_BINARY_DIR}
+            ${fdset} ${args_TEMPLATES}
+    # TODO(josh): figure out why a regular custom_command doesn't work to get
+    # .clang format copied to the bintree
+    COMMAND cp ${CMAKE_SOURCE_DIR}/.clang-format ${CMAKE_BINARY_DIR}/
+    COMMAND ${_clang_format} -style file -i ${outpaths}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+
+  add_custom_target(${args_NAME} ALL DEPENDS ${outs})
+  add_dependencies("gen" ${args_NAME})
+endfunction()
+
+# Add a test which fails if a source directory file does not match a build
+# directory file
+function(gentest)
+  cmake_parse_arguments(args "" "NAME" "FILES" ${ARGN})
+
+  file(RELATIVE_PATH outdir "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
+  string(REPLACE "/" "-" prefix ${outdir})
+
+  set(repopaths)
+  set(depends)
+  foreach(filename ${args_FILES})
+    list(APPEND repopaths ${outdir}/${filename})
+    list(APPEND depends ${CMAKE_CURRENT_BINARY_DIR}/${filename})
+  endforeach()
+
+  tangent_addtest(
+      NAME "${args_NAME}"
+      COMMAND python -B ${TANGENT_TOOLING}/gentest.py
+        --source-tree ${CMAKE_SOURCE_DIR}
+        --gen-tree ${CMAKE_BINARY_DIR}
+        ${repopaths}
+      DEPENDS ${depends})
+
+  add_custom_target(
+      "fix.${args_NAME}"
+      COMMAND python -B ${TANGENT_TOOLING}/gentest.py
+        --source-tree ${CMAKE_SOURCE_DIR}
+        --gen-tree ${CMAKE_BINARY_DIR}
+        --fix
+        ${repopaths}
+      DEPENDS ${depends})
+  add_dependencies("format" "fix.${args_NAME}")
+endfunction()
+
+function(proto_library)
+  set(onevalue_args "NAME" "STRIP_IMPORT_PREFIX" "IMPORT_PREFIX")
+  set(mvalue_args "SRCS" "DEPS")
+  cmake_parse_arguments(args "" "${onevalue_args}" "${mvalue_args}" ${ARGN})
+
+  file(RELATIVE_PATH outdir "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
+  string(REPLACE "/" "-" prefix ${outdir})
+
+  set(outfile "${args_NAME}-file-descriptor-set.proto.bin")
+
+  add_custom_comand(
+    OUTPUT ${outfile}
     COMMAND
       # cmake-format: off
-      $<TARGET_FILE:protostruct>
-      --proto-path ${CMAKE_CURRENT_SOURCE_DIR}
-      generate --cpp-root ${CMAKE_CURRENT_BINARY_DIR}
-      ${args_PROTO} ${only_flags}
+      protoc --proto_path=${CMAKE_SOURCE_DIR}
+        --descriptor_set_out=${outdir}/${outfile}
       # cmake-format: on
-    COMMAND # cmake-format: off
-      ${_clang_format} -i -style=File ${outs}
-      # cmake-format: on
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  )
 endfunction()

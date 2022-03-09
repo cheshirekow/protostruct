@@ -9,17 +9,24 @@ endif()
 # Generate protobuf descriptor extensions
 # ========================================
 
+set(_extensions_pb ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.proto.bin)
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.h
          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.cc
+         ${_extensions_pb}
          # TODO(josh): figure out how to deal with python path so that this can
          # go in the binary tree
          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
   DEPENDS descriptor_extensions.proto
   COMMAND
+    # cmake-format: off
     protoc --proto_path=${CMAKE_SOURCE_DIR}
+    --descriptor_set_out=${_extensions_pb}
+    --cpp_out=${CMAKE_BINARY_DIR}
+    --python_out=${CMAKE_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/descriptor_extensions.proto
-    --cpp_out=${CMAKE_BINARY_DIR} --python_out=${CMAKE_BINARY_DIR})
+    # cmake-format: on
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # =================================
 # zip up protostruct python package
@@ -209,65 +216,69 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/pbwire-config.cmake"
 # Protostruct tests
 # =================
 
-# compile .h/.proto -> .pb3
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
-  DEPENDS protostruct ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.h
-          ${CMAKE_CURRENT_SOURCE_DIR}/test/test_in.proto
-          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/sync/test_messages.proto.bin
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sync/test_messages.proto
   COMMAND
     # cmake-format: off
-    $<TARGET_FILE:protostruct>
-    --proto-path ${CMAKE_CURRENT_SOURCE_DIR}/test
-    compile tangent/protostruct/test/test_messages.h
-    --proto-in test_in.proto
-    --proto-out ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
-    --pb3-out ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
-    -- -I ${CMAKE_SOURCE_DIR}
+    python -B ${TANGENT_TOOLING}/proto_library.py
+    --out ${CMAKE_CURRENT_BINARY_DIR}/sync/test_messages.proto.bin
+    --srcs tangent/protostruct/sync/test_messages.proto
+    --strip_import_prefix "tangent/protostruct/sync"
+    --import_prefix "tangent/protostruct/test"
     # cmake-format: on
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# compile .h -> .pb3
+protostruct_compile(
+  NAME "protoc-test_messages"
+  PB3_OUT "test/test_messages.pb3"
+  SOURCE_PATTERNS "tangent/.\\*\\.h"
+  SRCFILE "test/test_messages.c"
+  DEPS "test/test_messages.h"
+  PROTO_SYNC ${CMAKE_CURRENT_BINARY_DIR}/sync/test_messages.proto.bin)
 
 # generate code from .pb3
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-recon.h
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
-         ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.cc
-  DEPENDS protostruct ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
-          ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions_pb2.py
-  COMMAND
-    # cmake-format: off
-    $<TARGET_FILE:protostruct> generate
-    ${CMAKE_CURRENT_BINARY_DIR}/test_messages.pb3
-    --cpp-root ${CMAKE_SOURCE_DIR}
-    cpp-simple cereal pbwire pb2c recon
-    # cmake-format: on
-  COMMAND
-    ${_clang_format} -i -style=File
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-recon.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages-simple.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.cereal.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pbwire.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.pb2c.cc
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+protostruct_gen(
+  NAME "protog-test_messages"
+  FDSET "test/test_messages.pb3"
+  BASENAMES "test/test_messages"
+  TEMPLATES "cpp-simple" "cereal" "pbwire" "pb2c" "proto" "recon")
+
+gentest(
+  NAME "gentest-test_messages"
+  FILES "test/test_messages-recon.h"
+        "test/test_messages-simple.cc"
+        "test/test_messages-simple.h"
+        "test/test_messages.cereal.h"
+        "test/test_messages.pb2c.cc"
+        "test/test_messages.pb2c.h"
+        "test/test_messages.pbwire.c"
+        "test/test_messages.pbwire.h"
+        "test/test_messages.proto")
 
 # generate C/C++ bindings from .proto
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.h
-         ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.cc
-  DEPENDS test/test_messages.proto
-  COMMAND
-    protoc --proto_path=${CMAKE_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
-    --cpp_out=${CMAKE_BINARY_DIR})
+if(PROTOC_VERSION VERSION_GREATER 3.2.0)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.h
+           ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.cc
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb3
+    COMMAND
+      protoc
+      --descriptor_set_in=${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb3
+      tangent/protostruct/test/test_messages.proto
+      --cpp_out=${CMAKE_BINARY_DIR})
+else()
+  # generate C/C++ bindings from .proto
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.h
+           ${CMAKE_CURRENT_BINARY_DIR}/test/test_messages.pb.cc
+    DEPENDS test/test_messages.proto
+    COMMAND
+      protoc --proto_path=${CMAKE_SOURCE_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/test/test_messages.proto
+      --cpp_out=${CMAKE_BINARY_DIR})
+endif()
 
 cc_library(
   test-messages

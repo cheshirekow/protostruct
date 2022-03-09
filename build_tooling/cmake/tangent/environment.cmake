@@ -123,3 +123,19 @@ endif()
 set(DEBIAN_SIGNING_KEY 6A8A4FAF CACHE "STRING"
     "Fingerprint of gpg key used to sign debian packages")
 
+set(PROTOC_VERSION 0.0.0)
+execute_process(
+  COMMAND protoc --version
+  RESULT_VARIABLE _returncode
+  OUTPUT_VARIABLE _protoc_version_raw
+  ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(_returncode EQUAL 0)
+  if("${_protoc_version_raw}" MATCHES "libprotoc ([0-9\.]+)")
+    set(PROTOC_VERSION ${CMAKE_MATCH_1})
+  else()
+    message(WARNING "Failed to parse libprotoc version from "
+      "'${_protoc_version_raw}', assuming 0.0.0")
+  endif()
+else()
+  message(WARNING "Failed to query protoc version, assuming 0.0.0")
+endif()

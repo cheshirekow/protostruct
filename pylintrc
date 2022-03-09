@@ -112,6 +112,7 @@ ignored-classes=
     descriptor_pb2,
     descriptor_extensions_pb2,
     FieldDescriptorProto,
+    FileDescriptorSet,
     GitError,
     git_watch.inotify,
     jinja2,

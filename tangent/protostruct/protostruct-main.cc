@@ -28,7 +28,7 @@
 #include "tangent/util/stringutil.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
-  { 0, 2, 0, "dev", 2 }
+  { 0, 2, 0, "dev", 3 }
 
 // NOTE(josh): to self, see:
 // https://developers.google.com/protocol-buffers/docs/reference/cpp#google.protobuf.compiler
@@ -121,38 +121,34 @@ struct ProgramOptions {
   std::vector<std::string> proto_path;
 
   struct CompileOptions {
-    // Path to the input file to compile. May be a source file or a header
+    /// Path to the input file to compile. May be a source file or a header
     std::string source_filepath;
 
-    // Pattern indicating how to find the input proto for synchronization
-    // in the form of "{relpath}/{basename}.proto"
+    /// Path to a binary encoded FileDescriptorSet containing input
+    /// descriptors to use for synchronization
     std::string proto_inpath;
 
-    // Pattern indicating how to construct the output path for the proto to
-    // write, in the form of "{relpath}/{basename}.proto"
-    std::string proto_outpath;
-
-    // Pattern indicating how to construct the output path for the serialized
-    // file descriptor to write, in the form of "{relpath}/{basename}.pb3"
+    /// Where to write the output. The output is a binary encoded
+    /// FileDescriptorSet.
     std::string binary_outpath;
 
-    // If specified, these filters are used to restrict
-    // which header files are processed for message definitions. Each entry
-    // is a (possibly negated) regex pattern. A struct/enum will be processed
-    // if the header containing it matches an inclusion pattern. Patterns are
-    // matched in order with the latest matching pattern taking priority.
-    // If not specified, then only those defined in source_filepath are
-    // processed.
+    /// If specified, these filters are used to restrict
+    /// which header files are processed for message definitions. Each entry
+    /// is a (possibly negated) regex pattern. A struct/enum will be processed
+    /// if the header containing it matches an inclusion pattern. Patterns are
+    /// matched in order with the latest matching pattern taking priority.
+    /// If not specified, then only those defined in source_filepath are
+    /// processed.
     std::vector<std::string> source_patterns;
 
-    // If specified, these are used to restrict which messages and enums are
-    // included in the generated descriptors. Each entry is a regex pattern.
-    // a struct or enum is included if matches an inclusion pattern and is
-    // not excluded by a later exclusion pattern.
+    /// If specified, these are used to restrict which messages and enums are
+    /// included in the generated descriptors. Each entry is a regex pattern.
+    /// a struct or enum is included if matches an inclusion pattern and is
+    /// not excluded by a later exclusion pattern.
     std::vector<std::string> name_patterns;
 
-    // List of flags passed to libclang to build the translation unit (e.g.
-    // compilation flags).
+    /// List of flags passed to libclang to build the translation unit (e.g.
+    /// compilation flags).
     std::vector<std::string> clang_options;
   } compile_opts;
 
@@ -265,30 +261,19 @@ void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
 
   compile_parser->add_argument(
       "sourcefile", dest=&(opts->compile_opts.source_filepath), nargs='?',
-      help="The source file to parse");
+      help="The source file to compile");
 
   compile_parser->add_argument(
-      "-b", "--pb3-out", dest=&(opts->compile_opts.binary_outpath),
-      help="The output file pattern where the binary encoded "
-           "FileDescriptorProto is written. The sentinels {reldir} and "
-           "{basename} will be replaced by the relative directory and basename"
-           "of the header or source file which admitted the descriptor");
-
-  compile_parser->add_argument(
-      "-o", "--proto-out", dest=&(opts->compile_opts.proto_outpath),
-      help="The output file pattern where a textual .proto is"
-           " written. The sentinels {reldir} and "
-           "{basename} will be replaced by the relative directory and basename"
-           "of the header or source file which admitted the descriptor");
+      "-o", "--pb3-out", dest=&(opts->compile_opts.binary_outpath),
+      help="The output file were we write the binary serialization of the "
+            "generated FileDescriptorSet");
 
   compile_parser->add_argument(
       "-i", "--proto-in", dest=&(opts->compile_opts.proto_inpath),
-      help="If provided, this .proto is used to initialize the file descriptor"
-           "prior to compiling the input. Otherwise, if the output .proto"
-           "exists, then it will be used. This option can be used to preserve"
-           "manual edits in the generated proto. The sentinels {reldir} and "
-           "{basename} will be replaced by the relative directory and basename"
-           "of the header or source file which admitted the descriptor");
+      help="If provided, this binary serializaiton of a FileDescriptorSet is"
+           " parsed and used to initialize each FileDescriptor which is"
+           " generated. This allows you to 'synchronize' between an a set of"
+           " .proto's and .h's");
 
   compile_parser->add_argument(
       "-s", "--source-patterns", dest=&(opts->compile_opts.source_patterns),
@@ -300,7 +285,6 @@ void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
       "matched in order with the latest matching pattern taking priority. If "
       "not specified, then only those defined in source_filepath are "
       "processed.");
-
 
   compile_parser->add_argument(
       "-n", "--name-patterns", dest=&(opts->compile_opts.name_patterns),
@@ -334,7 +318,7 @@ void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
 
   gen_parser->add_argument(
       "gen_types", dest=&(opts->gen_opts.templates), nargs="+",
-      choices={"cpp-simple", "cereal", "pb2c", "pbwire", "recon"},
+      choices={"cpp-simple", "cereal", "pb2c", "pbwire", "proto", "recon"},
       help="Generate bindings from these templates");
   // clang-format on
 }
@@ -721,14 +705,25 @@ class VisitorContext {
  public:
   VisitorContext(CXTranslationUnit tunit,
                  const std::vector<std::string>& source_patterns,
-                 google::protobuf::DescriptorDatabase* descr_db,
-                 const std::string proto_inpattern,
-                 const std::string proto_outpattern)
-      : tunit_{tunit},
-        descr_db_{descr_db},
-        proto_inpattern_{proto_inpattern},
-        proto_outpattern_{proto_outpattern} {
+                 const std::string fileset_in)
+      : tunit_{tunit} {
     (void)tunit_;
+
+    google::protobuf::FileDescriptorSet file_set{};
+    std::ifstream infile{fileset_in};
+    if (infile.good()) {
+      if (!file_set.ParseFromIstream(&infile)) {
+        LOG(FATAL) << "Failed to parse input descriptor set" << fileset_in;
+      }
+      for (google::protobuf::FileDescriptorProto& filedescr :
+           *file_set.mutable_file()) {
+        fileproto_map_[filedescr.name()] =
+            std::make_shared<google::protobuf::FileDescriptorProto>(filedescr);
+      }
+    } else {
+      LOG(WARNING) << "Input descriptor set " << fileset_in
+                   << " does not exist";
+    }
 
     for (const auto& pattern : source_patterns) {
       if (pattern.empty()) {
@@ -803,20 +798,24 @@ class VisitorContext {
 
   google::protobuf::FileDescriptorProto* file_proto() {
     if (!file_proto_) {
-      auto iter = fileproto_map_.find(source_filepath_);
+      std::regex extension_re{"\\.[^\\.]+$"};
+      std::string protopath =
+          std::regex_replace(source_filepath_, extension_re, ".proto");
+      auto iter = fileproto_map_.find(protopath);
       if (iter == fileproto_map_.end()) {
         file_proto_ = std::make_shared<google::protobuf::FileDescriptorProto>();
-        fileproto_map_.insert(std::make_pair(source_filepath_, file_proto_));
-        std::string proto_inpath =
-            substitute_path_pattern(proto_inpattern_, source_filepath_);
-        if (!descr_db_->FindFileByName(proto_inpath, file_proto_.get())) {
-          LOG(WARNING) << "Failed to import " << proto_inpath;
-        }
+        file_proto_->set_name(protopath);
+        fileproto_map_.insert(std::make_pair(protopath, file_proto_));
+      } else {
+        file_proto_ = iter->second;
+      }
+      if (file_proto_->mutable_options()
+              ->MutableExtension(protostruct::fileopts)
+              ->header_filepath()
+              .empty()) {
         file_proto_->mutable_options()
             ->MutableExtension(protostruct::fileopts)
             ->set_header_filepath(source_filepath_);
-      } else {
-        file_proto_ = iter->second;
       }
     }
     return file_proto_.get();
@@ -854,24 +853,21 @@ class VisitorContext {
         msg << "\n  " << pair.first << " (false): ";
       }
     }
-    LOG(INFO) << "visted files:\n  " << msg.str();
+    VLOG(1) << "visted files:" << msg.str();
   }
 
-  std::map<std::string, std::string> write_protos() {
-    std::map<std::string, std::string> out;
-    for (const auto& pair : fileproto_map_) {
-      LOG(INFO) << "Writing " << pair.first;
-      std::string binary_outpath =
-          substitute_path_pattern(proto_outpattern_, pair.first);
-      std::ofstream outfile{binary_outpath};
-      if (!outfile.good()) {
-        LOG(FATAL) << "Failed to open " << binary_outpath << " for write";
+  void get_fileset(google::protobuf::FileDescriptorSet* fileset) {
+    fileset->mutable_file()->Reserve(matched_files_.size());
+    for (const auto& pair : matched_files_) {
+      std::regex extension_re{"\\.[^\\.]+$"};
+      std::string protopath =
+          std::regex_replace(pair.first, extension_re, ".proto");
+      auto iter = fileproto_map_.find(protopath);
+      if (iter == fileproto_map_.end()) {
         continue;
       }
-      out[pair.first] = binary_outpath;
-      pair.second->SerializeToOstream(&outfile);
+      *fileset->add_file() = *iter->second;
     }
-    return out;
   }
 
  private:
@@ -898,21 +894,9 @@ class VisitorContext {
   /// Map included files to the pattern they matched for inclusion
   std::map<std::string, const InclusionFilter*> matched_files_;
 
-  /// Map from include file to mutable FileDescriptor's for that file
+  /// Map from .proto filename to mutable FileDescriptor's for that file
   std::map<std::string, std::shared_ptr<google::protobuf::FileDescriptorProto>>
       fileproto_map_;
-
-  /// Proto descriptor database from which to get input protos for
-  /// synchronization
-  google::protobuf::DescriptorDatabase* descr_db_;
-
-  /// Pattern string used to find input .proto for synchronization, given the
-  /// corresponding name of a .h
-  std::string proto_inpattern_;
-
-  /// Pattern string used to construct output .proto filepath, given the
-  /// corresponding name of a .h
-  std::string proto_outpattern_;
 };
 
 /// Visit the field declaration for a fixed-length array and look for a
@@ -1435,9 +1419,8 @@ int compile_main(const ProgramOptions& popts) {
   }
 
   auto& copts = popts.compile_opts;
-  std::string proto_outpattern = copts.proto_outpath;
-  if (proto_outpattern.empty()) {
-    proto_outpattern = "{reldir}/{basename}.proto";
+  if (copts.binary_outpath.empty()) {
+    LOG(FATAL) << "--pb3-out is required";
   }
 
   std::string proto_inpath = copts.proto_inpath;
@@ -1445,13 +1428,8 @@ int compile_main(const ProgramOptions& popts) {
     // If a synchronization proto was not provided, default to the output
     // proto. That way, if the output proto already exists, we will read
     // it in and preserve any choices that were made.
-    proto_inpath = proto_outpattern;
+    proto_inpath = copts.binary_outpath;
   }
-
-  MyErrorCollector error_collector{};
-  google::protobuf::compiler::SourceTreeDescriptorDatabase descr_db{
-      &source_tree};
-  descr_db.RecordErrorsTo(&error_collector);
 
   CXIndex index = clang_createIndex(0, 0);
   CXTranslationUnit tunit{};
@@ -1505,15 +1483,17 @@ int compile_main(const ProgramOptions& popts) {
     source_patterns.emplace_back(copts.source_filepath);
   }
 
-  std::string binary_outpattern = copts.binary_outpath;
-  if (binary_outpattern.empty()) {
-    binary_outpattern = stringutil::split(proto_outpattern, '.')[0] + ".pb3";
-  }
-
-  VisitorContext ctx{tunit, source_patterns, &descr_db, proto_inpath,
-                     binary_outpattern};
+  VisitorContext ctx{tunit, source_patterns, proto_inpath};
   visit_tree<FileVisitor>(clang_getTranslationUnitCursor(tunit), &ctx);
-  auto binpairs = ctx.write_protos();
+  google::protobuf::FileDescriptorSet fileset{};
+
+  ctx.get_fileset(&fileset);
+  std::ofstream outfile{copts.binary_outpath};
+  if (!outfile.good()) {
+    LOG(FATAL) << "Failed to open " << copts.binary_outpath << " for write";
+  }
+  fileset.SerializeToOstream(&outfile);
+  outfile.close();
 
   clang_disposeTranslationUnit(tunit);
   clang_disposeIndex(index);
@@ -1548,18 +1528,6 @@ int compile_main(const ProgramOptions& popts) {
   //   }
   // }
 
-  for (auto& pair : binpairs) {
-    std::string header_filepath = pair.first;
-    std::string binary_outpath = pair.second;
-    std::string proto_outpath =
-        substitute_path_pattern(proto_outpattern, pair.first);
-    VLOG(1) << binary_outpath << " --> " << proto_outpath;
-    int retcode = python_gen({binary_outpath, "--proto-out", proto_outpath});
-    if (retcode != 0) {
-      return retcode;
-    }
-  }
-
   return 0;
 }
 
@@ -1590,17 +1558,14 @@ int gen_main(const ProgramOptions& popts) {
         &source_tree};
     descr_db.RecordErrorsTo(&error_collector);
 
-    google::protobuf::FileDescriptorProto fileproto{};
-    if (!descr_db.FindFileByName(gopts.input_filepath, &fileproto)) {
+    google::protobuf::FileDescriptorSet fileset{};
+    if (!descr_db.FindFileByName(gopts.input_filepath, fileset.add_file())) {
       LOG(FATAL) << "Failed to import " << gopts.input_filepath;
       return 1;
     }
 
     auto name_parts = stringutil::split(gopts.input_filepath, '.');
     name_parts.pop_back();
-    auto basename = stringutil::join(name_parts, ".");
-    args.push_back("--basename");
-    args.push_back(basename);
 
     binary_filepath = "temp-XXXXXX.pb3";
     int fd = mkstemps(&binary_filepath[0], 4);
@@ -1613,7 +1578,7 @@ int gen_main(const ProgramOptions& popts) {
       LOG(FATAL) << "Failed to open " << binary_filepath << " for write";
       return 1;
     }
-    fileproto.SerializeToOstream(&outfile);
+    fileset.SerializeToOstream(&outfile);
 
   } else {
     binary_filepath = gopts.input_filepath;

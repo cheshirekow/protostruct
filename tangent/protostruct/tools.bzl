@@ -2,17 +2,14 @@ load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
 def protostruct_compile(
     name = None,
-    proto_path = None,
     sourcefile = None,
     deps = None,
-    proto_out = None,
     pb3_out = None,
     source_patterns = None,
     name_patterns = None,
     proto_sync = None,
     visibility = None,
-    cflags = None,
-    enforce = False):
+    cflags = None):
   """Use protostruct to reverse out the message spec from existing structs
 
   Args:
@@ -28,11 +25,6 @@ def protostruct_compile(
       the input proto from `proto_sync`
   """
 
-  if not proto_out and not pb3_out:
-    fail("One of proto_out or pb3_out are required")
-
-  if proto_path == None:
-    proto_path = []
   if deps == None:
     deps = []
   if cflags == None:
@@ -47,19 +39,14 @@ def protostruct_compile(
 
   cmdparts = [
     "$(execpath //tangent/protostruct:protostruct)",
-    "  --proto-path $$(dirname {})".format(sourcefile),
-  ] + ["--proto-path " + path for path in proto_path] + [
     "compile",
     "$(location {})".format(sourcefile),
   ]
 
   if proto_sync:
-    cmdparts += ["  --proto-in", proto_sync]
+    cmdparts += ["  --proto-in", "$(location {})".format(proto_sync)]
     srcs += [proto_sync]
 
-  if proto_out:
-    cmdparts += ["--proto-out", "$(RULEDIR)/" + proto_out]
-    outs += [proto_out]
   if pb3_out:
     cmdparts += ["--pb3-out", "$(RULEDIR)/" + pb3_out]
     outs += [pb3_out]
@@ -80,37 +67,30 @@ def protostruct_compile(
     visibility = visibility,
   )
 
-  if proto_out and enforce:
-    py_test(
-      name = name + ".enforce",
-      srcs = ["//tangent/protostruct:diff_test.py"],
-      main = "diff_test.py",
-      args = [
-        "--truth-file",
-        "$(location %s) " % proto_out,
-        "--query-file",
-        "$(location %s)" % proto_sync,
-      ],
-      data = outs + [proto_sync],
-    )
+  # if proto_out and enforce:
+  #   py_test(
+  #     name = name + ".enforce",
+  #     srcs=["//tangent/protostruct:diff_test.py"],
+  #     main="diff_test.py",
+  #     args=[
+  #       "--truth-file", "$(location %s) " % proto_out,
+  #       "--query-file", "$(location %s)" % proto_sync,
+  #   ], data = outs + [proto_sync])
 
-    py_binary(
-      name = name + ".fix",
-      srcs = ["//tangent/protostruct:diff_test.py"],
-      main = "diff_test.py",
-      args = [
-        "--truth-file",
-        "$(location %s) " % proto_out,
-        "--query-file",
-        "$(location %s)" % proto_sync,
-        "--fix",
-      ],
-      data = outs + [proto_sync],
-    )
+  #   py_binary(
+  #     name = name + ".fix",
+  #     srcs=["//tangent/protostruct:diff_test.py"],
+  #     main="diff_test.py",
+  #     args=[
+  #       "--truth-file", "$(location %s) " % proto_out,
+  #       "--query-file", "$(location %s)" % proto_sync,
+  #       "--fix"
+  #   ], data = outs + [proto_sync])
 
 def protostruct_gen(
     name = None,
-    proto = None,
+    fdset = None,
+    basenames = None,
     templates = None,
     visibility = None):
   """Use protostruct to generate code
@@ -120,13 +100,6 @@ def protostruct_gen(
     templates: which templates to generate
     visibility: visibility of the generated files
   """
-  if proto.endswith(".proto"):
-    basename = proto[:-len(".proto")]
-  elif proto.endswith(".pb3"):
-    basename = proto[:-len(".pb3")]
-  else:
-    fail("Invalid proto name {}".format(proto))
-
   cmdparts = [
     "$(location //tangent/protostruct:protostruct)",
     "--proto-path",
@@ -134,30 +107,33 @@ def protostruct_gen(
     "generate",
     "--cpp-root",
     "$(BINDIR)",
-    "$(location {})".format(proto),
+    "$(location {})".format(fdset),
   ] + templates
 
   outs = []
-  for groupname in templates:
-    if groupname == "cpp-simple":
-      outs.append(basename + "-simple.h")
-      outs.append(basename + "-simple.cc")
-    if groupname == "recon":
-      outs.append(basename + "-recon.h")
-    if groupname == "pb2c":
-      outs.append(basename + ".pb2c.h")
-      outs.append(basename + ".pb2c.cc")
-    if groupname == "pbwire":
-      outs.append(basename + ".pbwire.h")
-      outs.append(basename + ".pbwire.c")
-    if groupname == "cereal":
-      outs.append(basename + ".cereal.h")
+  for basename in basenames:
+    for groupname in templates:
+      if groupname == "cpp-simple":
+        outs.append(basename + "-simple.h")
+        outs.append(basename + "-simple.cc")
+      if groupname == "recon":
+        outs.append(basename + "-recon.h")
+      if groupname == "pb2c":
+        outs.append(basename + ".pb2c.h")
+        outs.append(basename + ".pb2c.cc")
+      if groupname == "pbwire":
+        outs.append(basename + ".pbwire.h")
+        outs.append(basename + ".pbwire.c")
+      if groupname == "proto":
+        outs.append(basename + ".proto")
+      if groupname == "cereal":
+        outs.append(basename + ".cereal.h")
 
   native.genrule(
     name = name,
     outs = outs,
     cmd = " ".join(cmdparts),
-    srcs = [proto],
+    srcs = [fdset],
     tools = ["//tangent/protostruct:protostruct"],
     visibility = visibility,
   )
