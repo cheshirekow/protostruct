@@ -28,7 +28,7 @@
 #include "tangent/util/stringutil.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
-  { 0, 2, 0, "dev", 3 }
+  { 0, 2, 0, "dev", 4 }
 
 // NOTE(josh): to self, see:
 // https://developers.google.com/protocol-buffers/docs/reference/cpp#google.protobuf.compiler

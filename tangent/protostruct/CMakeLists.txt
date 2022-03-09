@@ -306,3 +306,5 @@ cc_test(
   SRCS devtest.cc
   DEPS cereal gtest gtest_main test-messages
   PKGDEPS protobuf)
+
+glob_subdirs()

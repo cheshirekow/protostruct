@@ -16,7 +16,7 @@ if os.environ.get("READTHEDOCS") == "True":
 # General information about the project.
 docname = project + u'doc'
 title = project + ' Documentation'
-copyright = u'2018-2019, Josh Bialkowski'  # pylint: disable=W0622
+copyright = u'2018-2022, Josh Bialkowski'  # pylint: disable=W0622
 author = u'Josh Bialkowski'
 
 # If your documentation needs a minimal Sphinx version, state it here.
