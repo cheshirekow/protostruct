@@ -8,7 +8,7 @@
 include "{{depend.replace(".", "/")}}.h";
 {% endfor %}
 
-{% set opts = get_protostruct_options(filedescr) %}
+{% set opts = util.get_protostruct_options(filedescr) %}
 {% if opts and opts.capacity_macros %}
 {% for macrodef in opts.capacity_macros %}
 #define {{macrodef}}
@@ -18,7 +18,7 @@ include "{{depend.replace(".", "/")}}.h";
 {% for enumidx, enumdescr in enumerate(filedescr.enum_type) %}
 {{ctx.get_leading_comment([5, enumidx], "cpp")}}
 typedef enum {{enumdescr.name}} {
-  {% set columnfmt = get_enum_columns(enumdescr.value, style="cpp") %}
+  {% set columnfmt = util.get_enum_columns(enumdescr.value, style="cpp") %}
   {% for vidx, valuedescr in enumerate(enumdescr.value) %}
   {% set comment = ctx.get_leading_comment([5, enumidx, 2, vidx], "cpp") %}
   {% if comment %}
@@ -40,8 +40,8 @@ typedef struct {{msgdescr.name}} {
   {{comment}}
   {% endif %}
   {% set comment = ctx.get_trailing_comment(path, "cpp") %}
-  {% if is_repeated(fielddescr) %}
-    {{ctx.get_typename(fielddescr, "cpp")}} {{fielddescr.name}}[{{get_arraysize(fielddescr)}}]; {{comment}}
+  {% if util.is_repeated(fielddescr) %}
+    {{ctx.get_typename(fielddescr, "cpp")}} {{fielddescr.name}}[{{util.get_arraysize(fielddescr)}}]; {{comment}}
   {% else %}
     {{ctx.get_typename(fielddescr, "cpp")}} {{fielddescr.name}}; {{comment}}
   {% endif %}

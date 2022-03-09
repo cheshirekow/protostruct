@@ -74,12 +74,12 @@ tjson::OStream& operator<<(tjson::OStream& out, const {{descr.name}}& value){
 namespace tjson {
 
 {% for enumdescr in filedescr.enum_type %}
-int parse(tjson_ParseContext ctx, {{fqn_typename_cpp(enumdescr)}}* value){
+int parse(tjson_ParseContext ctx, {{ctx.fqn_typename_cpp(enumdescr)}}* value){
   std::string str{};
   int err = tjson::parse(ctx, &str);
   if(err) {
     return err;}
-  return {{get_cpp_namespace()}}::parse_json(str, value);
+  return {{ctx.get_cpp_namespace()}}::parse_json(str, value);
 }
 {% endfor %}
 
@@ -88,7 +88,7 @@ int parse(tjson_ParseContext ctx, {{fqn_typename_cpp(enumdescr)}}* value){
 
 static int {{descr.name}}_fielditem_callback(
     void* pobj, tjson_ParseContext ctx, tjson_StringPiece fieldname) {
-    auto* obj = reinterpret_cast<{{fqn_typename_cpp(descr)}}*>(pobj);
+    auto* obj = reinterpret_cast<{{ctx.fqn_typename_cpp(descr)}}*>(pobj);
     switch (tjson_StringPiece_suci_digest(fieldname)) {
       {% for fielddescr in descr.field %}
       case tangent::suci_hash("{{fielddescr.name}}"):
@@ -98,7 +98,7 @@ static int {{descr.name}}_fielditem_callback(
     return 0;
 }
 
-int parse(tjson_ParseContext ctx, {{fqn_typename_cpp(descr)}}* value){
+int parse(tjson_ParseContext ctx, {{ctx.fqn_typename_cpp(descr)}}* value){
   return tjson_parse_object(ctx, {{descr.name}}_fielditem_callback, value);
 }
 {% endfor %}

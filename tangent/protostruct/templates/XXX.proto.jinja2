@@ -7,7 +7,7 @@ import "tangent/protostruct/descriptor_extensions.proto";
 package {{filedescr.package}};
 {% endif %}
 
-{% set opts = get_protostruct_options(filedescr) %}
+{% set opts = util.get_protostruct_options(filedescr) %}
 {% if opts and opts.header_filepath %}
 option (protostruct.fileopts).header_filepath = "{{opts.header_filepath}}";
 {% endif %}
@@ -22,24 +22,24 @@ import "{{depend}}";
 {% endfor %}
 
 {% for enumdescr in filedescr.enum_type %}
-{{get_comment(enumdescr)}}
+{{ctx.get_comment(enumdescr)}}
 enum {{enumdescr.name}} {
-  {% set columns = get_enum_columns(enumdescr.value) %}
+  {% set columns = util.get_enum_columns(enumdescr.value) %}
   {% for valuedescr in enumdescr.value %}
-  {{columns.format(valuedescr.name, valuedescr.number)}};  {{get_comment(valuedescr)}}
+  {{columns.format(valuedescr.name, valuedescr.number)}};  {{ctx.get_comment(valuedescr)}}
   {% endfor %}
 }
 
 {% endfor %}
 {% for descr in filedescr.message_type %}
-{{get_comment(descr)}}
+{{ctx.get_comment(descr)}}
 message {{descr.name}} {
   {% if descr.reserved_range %}
-  reserved {{format_reserved(descr.reserved_range)}};
+  reserved {{util.format_reserved(descr.reserved_range)}};
   {% endif %}
-  {% set columns = get_field_columns(descr.field) %}
+  {% set columns = ctx.get_field_columns(descr.field) %}
   {% for fielddescr in descr.field %}
-  {{columns.format(*tuplize_fielddescr(fielddescr))}}
+  {{columns.format(*ctx.tuplize_fielddescr(fielddescr))}}
   {% endfor %}
 }
 

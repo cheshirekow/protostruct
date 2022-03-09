@@ -21,7 +21,7 @@ namespace {{ns}} {
 {% for enumidx, enumdescr in enumerate(filedescr.enum_type) %}
 {{ctx.get_leading_comment([5, enumidx], "cpp")}}
 enum {{enumdescr.name}} {
-  {% set columnfmt = get_enum_columns(enumdescr.value, style="cpp") %}
+  {% set columnfmt = util.get_enum_columns(enumdescr.value, style="cpp") %}
   {% for vidx, valuedescr in enumerate(enumdescr.value) %}
   {% set comment = ctx.get_leading_comment([5, enumidx, 2, vidx], "cpp") %}
   {% if comment %}
@@ -46,7 +46,7 @@ struct {{msgdescr.name}} {
   {{comment}}
   {% endif %}
   {% set comment = ctx.get_trailing_comment(path, "cpp") %}
-  {% if is_repeated(fielddescr) %}
+  {% if util.is_repeated(fielddescr) %}
     std::vector<{{ctx.get_typename(fielddescr, "cpp")}}> {{fielddescr.name}}; {{comment}}
   {% else %}
     {{ctx.get_typename(fielddescr, "cpp")}} {{fielddescr.name}}; {{comment}}
@@ -70,11 +70,11 @@ tjson::OStream& operator<<(tjson::OStream& out, const {{msgdescr.name}}& value);
 namespace tjson {
 
 {% for enumdescr in filedescr.enum_type %}
-int parse(tjson_ParseContext ctx, {{fqn_typename_cpp(enumdescr)}}* value);
+int parse(tjson_ParseContext ctx, {{ctx.fqn_typename_cpp(enumdescr)}}* value);
 {% endfor %}
 
 {% for descr in filedescr.message_type %}
-int parse(tjson_ParseContext ctx, {{fqn_typename_cpp(descr)}}* value);
+int parse(tjson_ParseContext ctx, {{ctx.fqn_typename_cpp(descr)}}* value);
 {% endfor %}
 
 

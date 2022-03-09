@@ -100,6 +100,8 @@ py_library(
   srcs = [
     "__init__.py",
     "gen.py",
+    "template_context.py",
+    "template_util.py",
   ],
   data = glob(["templates/*.jinja2"]),
   deps = [
@@ -242,7 +244,7 @@ py_binary(
 genrule(
   name = "release",
   srcs = ["tools.bzl"],
-  outs = ["protostruct-0.2.0dev1.tar.gz"],
+  outs = ["protostruct-0.2.0dev6.tar.gz"],
   cmd = """
   $(location :make-release) \
     --protostruct-path $(location :protostruct) \

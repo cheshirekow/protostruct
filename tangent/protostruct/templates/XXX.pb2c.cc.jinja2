@@ -6,10 +6,10 @@
 #include "{{include_base}}.pb.h"
 
 {% for descr in filedescr.enum_type %}
-{{descr.name}} pb2c(const {{fqn_typename_cpp(descr)}}& proto){
+{{descr.name}} pb2c(const {{ctx.fqn_typename_cpp(descr)}}& proto){
   switch(proto){
     {% for value in descr.value %}
-      case {{fqn_typename_cpp(value)}}:
+      case {{ctx.fqn_typename_cpp(value)}}:
         return {{value.name}};
     {% endfor %}
       default:
@@ -18,43 +18,43 @@
   return {{descr.value[0].name}};
 }
 
-{{fqn_typename_cpp(descr)}} c2pb({{descr.name}} value){
+{{ctx.fqn_typename_cpp(descr)}} c2pb({{descr.name}} value){
   switch(value){
     {% for value in descr.value %}
       case {{value.name}}:
-        return {{fqn_typename_cpp(value)}};
+        return {{ctx.fqn_typename_cpp(value)}};
     {% endfor %}
   }
 
-  return {{fqn_typename_cpp(descr.value[0])}};
+  return {{ctx.fqn_typename_cpp(descr.value[0])}};
 }
 {%- endfor %}
 
 {% for descr in filedescr.message_type %}
-void pb2c(const {{fqn_typename_cpp(descr)}}& proto, {{descr.name}}* cobj){
+void pb2c(const {{ctx.fqn_typename_cpp(descr)}}& proto, {{descr.name}}* cobj){
 {% for fielddescr in descr.field %}
   {% set cfield = fielddescr.name %}
   {% set protofield = fielddescr.name.lower() %}
-  {% if is_repeated(fielddescr) %}
-    {% if get_lengthfield(fielddescr) %}
-    {% set countvar = "cobj->" + get_lengthfield(fielddescr) %}
+  {% if util.is_repeated(fielddescr) %}
+    {% if util.get_lengthfield(fielddescr) %}
+    {% set countvar = "cobj->" + util.get_lengthfield(fielddescr) %}
     {% else %}
     int {{fielddescr.name}}Count;
     {% set countvar = fielddescr.name + "Count" %}
     {% endif %}
 
-    {{countvar}} = std::min<int>(proto.{{protofield}}_size(), {{get_arraysize(fielddescr)}});
+    {{countvar}} = std::min<int>(proto.{{protofield}}_size(), {{util.get_arraysize(fielddescr)}});
     for(int idx=0; idx < static_cast<int>({{countvar}}); idx++){
-      {% if is_primitive(fielddescr) %}
+      {% if util.is_primitive(fielddescr) %}
         cobj->{{cfield}}[idx] = proto.{{protofield}}(idx);
       {% else %}
         pb2c(proto.{{protofield}}(idx), &cobj->{{cfield}}[idx]);
       {% endif %}
     }
   {% else %}
-    {% if is_message(fielddescr)%}
+    {% if util.is_message(fielddescr)%}
       pb2c(proto.{{protofield}}(), &cobj->{{cfield}});
-    {% elif is_enum(fielddescr) %}
+    {% elif util.is_enum(fielddescr) %}
       cobj->{{cfield}} = pb2c(proto.{{protofield}}());
     {% else %}
       cobj->{{cfield}} = proto.{{protofield}}();
@@ -63,13 +63,13 @@ void pb2c(const {{fqn_typename_cpp(descr)}}& proto, {{descr.name}}* cobj){
 {% endfor %}
 }
 
-void c2pb(const {{descr.name}}& cobj, {{fqn_typename_cpp(descr)}}* proto){
+void c2pb(const {{descr.name}}& cobj, {{ctx.fqn_typename_cpp(descr)}}* proto){
 {% for fielddescr in descr.field %}
   {% set cfield = fielddescr.name %}
   {% set protofield = fielddescr.name.lower() %}
-  {% if is_repeated(fielddescr) %}
-    {% if get_lengthfield(fielddescr) %}
-    {% set countvar = "cobj." + get_lengthfield(fielddescr) %}
+  {% if util.is_repeated(fielddescr) %}
+    {% if util.get_lengthfield(fielddescr) %}
+    {% set countvar = "cobj." + util.get_lengthfield(fielddescr) %}
     {% else %}
     {% set countvar = "ARRAY_SIZE(cobj." + fielddescr.name + ")" %}
     {% endif %}
@@ -77,16 +77,16 @@ void c2pb(const {{descr.name}}& cobj, {{fqn_typename_cpp(descr)}}* proto){
     proto->mutable_{{protofield}}()->Clear();
     proto->mutable_{{protofield}}()->Reserve({{countvar}});
     for(int idx=0; idx < static_cast<int>({{countvar}}); idx++){
-      {% if is_primitive(fielddescr) %}
+      {% if util.is_primitive(fielddescr) %}
         proto->add_{{protofield}}(cobj.{{cfield}}[idx]);
       {% else %}
         c2pb(cobj.{{cfield}}[idx], proto->add_{{protofield}}());
       {% endif %}
     }
   {% else %}
-    {% if is_message(fielddescr) %}
+    {% if util.is_message(fielddescr) %}
       c2pb(cobj.{{cfield}}, proto->mutable_{{protofield}}());
-    {% elif is_enum(fielddescr) %}
+    {% elif util.is_enum(fielddescr) %}
       proto->set_{{protofield}}(c2pb(cobj.{{cfield}}));
     {% else %}
       proto->set_{{protofield}}(cobj.{{cfield}});

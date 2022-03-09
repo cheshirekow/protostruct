@@ -7,7 +7,7 @@
 #include "argue/argue.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
-  { 0, 2, 0, "dev", 5 }
+  { 0, 2, 0, "dev", 6 }
 
 struct ProgramOptions {
   std::string command;

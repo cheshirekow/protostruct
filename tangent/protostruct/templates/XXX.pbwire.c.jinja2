@@ -40,7 +40,7 @@ int pbparse_{{descr.name}}(pbwire_ParseContext* ctx, {{descr.name}}* value){
 int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
   int write_result = 0;
 
-  {% if has_packed_field(descr) or has_message_field(descr) %}
+  {% if util.has_packed_field(descr) or util.has_message_field(descr) %}
   uint32_t* delimit_ptr = NULL;
   int delimit_size = 0;
   {% endif %}
@@ -48,8 +48,8 @@ int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
       uint32_t encoded_size = 0;
 {% for fielddescr in descr.field %}
       /* {{fielddescr.name}} */
-  {% if is_packed(fielddescr) %}
-      write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+  {% if util.is_packed(fielddescr) %}
+      write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
       if(write_result < 0){
         return write_result;
       }
@@ -57,13 +57,13 @@ int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
 
       delimit_size = 0;
       delimit_ptr = ctx->length_cache.ptr++;
-      {% if get_lengthfield(fielddescr) %}
-      {% set countvar = "obj->" + get_lengthfield(fielddescr) %}
+      {% if util.get_lengthfield(fielddescr) %}
+      {% set countvar = "obj->" + util.get_lengthfield(fielddescr) %}
       {% else %}
       {% set countvar = "ARRAY_SIZE(obj->" + fielddescr.name + ")" %}
       {% endif %}
       for(int idx=0; idx < {{countvar}}; idx++){
-        write_result = {{get_emit_fun(fielddescr)}}(
+        write_result = {{ctx.get_emit_fun(fielddescr)}}(
           ctx, obj->{{fielddescr.name}}[idx]);
         if(write_result < 0){
           return write_result;
@@ -78,21 +78,21 @@ int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
         return write_result;
       }
       encoded_size += write_result;
-  {% elif is_repeated(fielddescr) %}
-    {% if get_lengthfield(fielddescr) %}
-    {% set countvar = "obj->" + get_lengthfield(fielddescr) %}
+  {% elif util.is_repeated(fielddescr) %}
+    {% if util.get_lengthfield(fielddescr) %}
+    {% set countvar = "obj->" + util.get_lengthfield(fielddescr) %}
     {% else %}
     {% set countvar = "ARRAY_SIZE(obj->" + fielddescr.name + ")" %}
     {% endif %}
-    {% if is_primitive(fielddescr) %}
+    {% if util.is_primitive(fielddescr) %}
     for(int idx=0; idx < {{countvar}}; idx++){
-      write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+      write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
       if(write_result < 0){
         return write_result;
       }
       encoded_size += write_result;
 
-      write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
+      write_result = {{ctx.get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
       if(write_result < 0){
         return write_result;
       }
@@ -100,14 +100,14 @@ int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
     }
     {% else %}
     for(int idx=0; idx < {{countvar}}; idx++){
-      write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+      write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
       if(write_result < 0){
         return write_result;
       }
       encoded_size += write_result;
 
       delimit_ptr = ctx->length_cache.ptr++;
-      write_result = {{get_emit_fun(fielddescr, 0)}}(ctx, &obj->{{fielddescr.name}}[idx]);
+      write_result = {{ctx.get_emit_fun(fielddescr, 0)}}(ctx, &obj->{{fielddescr.name}}[idx]);
       if(write_result < 0){
         return write_result;
       }
@@ -123,27 +123,27 @@ int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
     }
     {% endif %}
   {% else %}
-    {% if is_primitive(fielddescr) %}
-    write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+    {% if util.is_primitive(fielddescr) %}
+    write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
     if(write_result < 0){
       return write_result;
     }
     encoded_size += write_result;
 
-    write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}});
+    write_result = {{ctx.get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}});
     if(write_result < 0){
       return write_result;
     }
     encoded_size += write_result;
     {% else %}
-    write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+    write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
     if(write_result < 0){
       return write_result;
     }
     encoded_size += write_result;
 
     delimit_ptr = ctx->length_cache.ptr++;
-    write_result = {{get_emit_fun(fielddescr, 0)}}(ctx, &obj->{{fielddescr.name}});
+    write_result = {{ctx.get_emit_fun(fielddescr, 0)}}(ctx, &obj->{{fielddescr.name}});
     if(write_result < 0){
       return write_result;
     }
@@ -165,7 +165,7 @@ int _pbemit0_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
 int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
   int write_result = 0;
 
-  {% if has_packed_field(descr) or has_message_field(descr) %}
+  {% if util.has_packed_field(descr) or util.has_message_field(descr) %}
   uint32_t* delimit_ptr = NULL;
   int delimit_size = 0;
   {% endif %}
@@ -173,8 +173,8 @@ int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
       char* buffer_begin = ctx->buffer.ptr;
 {% for fielddescr in descr.field %}
       /* {{fielddescr.name}} */
-  {% if is_packed(fielddescr) %}
-      write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+  {% if util.is_packed(fielddescr) %}
+      write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
       if(write_result < 0){
         return write_result;
       }
@@ -188,34 +188,34 @@ int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
       }
       ctx->buffer.ptr += write_result;
 
-      {% if get_lengthfield(fielddescr) %}
-      {% set countvar = "obj->" + get_lengthfield(fielddescr) %}
+      {% if util.get_lengthfield(fielddescr) %}
+      {% set countvar = "obj->" + util.get_lengthfield(fielddescr) %}
       {% else %}
       {% set countvar = "ARRAY_SIZE(obj->" + fielddescr.name + ")" %}
       {% endif %}
       for(int idx=0; idx < {{countvar}}; idx++){
-        write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
+        write_result = {{ctx.get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
         if(write_result < 0){
           return write_result;
         }
         ctx->buffer.ptr += write_result;
       }
-  {% elif is_repeated(fielddescr) %}
-    {% if get_lengthfield(fielddescr) %}
-    {% set countvar = "obj->" + get_lengthfield(fielddescr) %}
+  {% elif util.is_repeated(fielddescr) %}
+    {% if util.get_lengthfield(fielddescr) %}
+    {% set countvar = "obj->" + util.get_lengthfield(fielddescr) %}
     {% else %}
     {% set countvar = "ARRAY_SIZE(obj->" + fielddescr.name + ")" %}
     {% endif %}
 
-    {% if is_primitive(fielddescr) %}
+    {% if util.is_primitive(fielddescr) %}
     for(int idx=0; idx < {{countvar}}; idx++){
-      write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+      write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
       if(write_result < 0){
         return write_result;
       }
       ctx->buffer.ptr += write_result;
 
-      write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
+      write_result = {{ctx.get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}}[idx]);
       if(write_result < 0){
         return write_result;
       }
@@ -223,7 +223,7 @@ int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
     }
     {% else %}
     for(int idx=0; idx < {{countvar}}; idx++){
-      write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+      write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
       if(write_result < 0){
         return write_result;
       }
@@ -237,7 +237,7 @@ int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
       }
       ctx->buffer.ptr += write_result;
 
-      write_result = {{get_emit_fun(fielddescr, 1)}}(ctx, &obj->{{fielddescr.name}}[idx]);
+      write_result = {{ctx.get_emit_fun(fielddescr, 1)}}(ctx, &obj->{{fielddescr.name}}[idx]);
       if(write_result < 0){
         return write_result;
       }
@@ -245,20 +245,20 @@ int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
     }
     {% endif %}
   {% else %}
-    {% if is_primitive(fielddescr) %}
-    write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+    {% if util.is_primitive(fielddescr) %}
+    write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
     if(write_result < 0){
       return write_result;
     }
     ctx->buffer.ptr += write_result;
 
-    write_result = {{get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}});
+    write_result = {{ctx.get_emit_fun(fielddescr)}}(ctx, obj->{{fielddescr.name}});
     if(write_result < 0){
       return write_result;
     }
     ctx->buffer.ptr += write_result;
     {% else %}
-    write_result = pbwire_write_tag(ctx, {{get_tag(fielddescr)}});
+    write_result = pbwire_write_tag(ctx, {{util.get_tag(fielddescr)}});
     if(write_result < 0){
       return write_result;
     }
@@ -272,7 +272,7 @@ int _pbemit1_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
     }
     ctx->buffer.ptr += write_result;
 
-    write_result = {{get_emit_fun(fielddescr, 1)}}(ctx, &obj->{{fielddescr.name}});
+    write_result = {{ctx.get_emit_fun(fielddescr, 1)}}(ctx, &obj->{{fielddescr.name}});
     if(write_result < 0){
       return write_result;
     }
@@ -298,21 +298,21 @@ int pbemit_{{descr.name}}(pbwire_EmitContext* ctx, const {{descr.name}}* obj){
 static int _parse_fielditem_{{descr.name}}(
     pbwire_ParseContext* ctx, {{descr.name}}* obj, uint32_t tag){
 {% for fielddescr in descr.field %}
-{% if is_repeated(fielddescr) and not get_lengthfield(fielddescr) %}
+{% if util.is_repeated(fielddescr) and not util.get_lengthfield(fielddescr) %}
   uint32_t {{fielddescr.name}}Count = 0;
 {% endif %}
 {% endfor %}
   switch(tag){
 {% for fielddescr in descr.field %}
     /* {{fielddescr.name}} */
-    case {{get_tag(fielddescr)}}: {
-{% if is_repeated(fielddescr) %}
-  {% if get_lengthfield(fielddescr) %}
-  {% set countvar = "obj->" + get_lengthfield(fielddescr) %}
+    case {{util.get_tag(fielddescr)}}: {
+{% if util.is_repeated(fielddescr) %}
+  {% if util.get_lengthfield(fielddescr) %}
+  {% set countvar = "obj->" + util.get_lengthfield(fielddescr) %}
   {% else %}
   {% set countvar = fielddescr.name + "Count" %}
   {% endif %}
-  {% if is_packed(fielddescr) %}
+  {% if util.is_packed(fielddescr) %}
       if({{countvar}} < ARRAY_SIZE(obj->{{fielddescr.name}})){
         return {{ctx.get_pbparse(fielddescr)}}(
           ctx, &obj->{{fielddescr.name}}[{{countvar}}++]);
@@ -322,7 +322,7 @@ static int _parse_fielditem_{{descr.name}}(
     }
 
     /* {{fielddescr.name}} (packed) */
-    case {{get_packed_tag(fielddescr)}}: {
+    case {{util.get_packed_tag(fielddescr)}}: {
       size_t write_idx = {{countvar}};
       int retcode = pbwire_parse_packed_repeated(
         ctx, (pbwire_RepeatedItemCallback)&{{ctx.get_pbparse(fielddescr)}},
