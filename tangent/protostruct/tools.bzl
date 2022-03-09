@@ -38,13 +38,12 @@ def protostruct_compile(
   outs = []
 
   cmdparts = [
-    "$(execpath //tangent/protostruct:protostruct)",
-    "compile",
+    "$(execpath //tangent/protostruct:protostruct-compile)",
     "$(location {})".format(sourcefile),
   ]
 
   if proto_sync:
-    cmdparts += ["  --proto-in", "$(location {})".format(proto_sync)]
+    cmdparts += ["--descriptor-set-in", "$(location {})".format(proto_sync)]
     srcs += [proto_sync]
 
   if pb3_out:
@@ -63,7 +62,7 @@ def protostruct_compile(
     outs = outs,
     cmd = " ".join(cmdparts),
     srcs = srcs + deps,
-    tools = ["//tangent/protostruct:protostruct"],
+    tools = ["//tangent/protostruct:protostruct-compile"],
     visibility = visibility,
   )
 
@@ -101,13 +100,11 @@ def protostruct_gen(
     visibility: visibility of the generated files
   """
   cmdparts = [
-    "$(location //tangent/protostruct:protostruct)",
-    "--proto-path",
-    ".",
-    "generate",
+    "$(location //tangent/protostruct:protostruct-gen)",
+    "--descriptor-set-in",
+    "$(location {})".format(fdset),
     "--cpp-root",
     "$(BINDIR)",
-    "$(location {})".format(fdset),
   ] + templates
 
   outs = []
@@ -134,6 +131,6 @@ def protostruct_gen(
     outs = outs,
     cmd = " ".join(cmdparts),
     srcs = [fdset],
-    tools = ["//tangent/protostruct:protostruct"],
+    tools = ["//tangent/protostruct:protostruct-gen"],
     visibility = visibility,
   )

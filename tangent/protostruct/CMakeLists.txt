@@ -61,23 +61,54 @@ add_custom_command(
 add_custom_target(protostruct-pyzip_exe_body
                   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip)
 
+# NOTE(josh): in cmake, a c++ binary is the only first class citizen. Here, we
+# have a custom binary which is in fact a zipfile of python sources, but we want
+# to treat it like a C++ binary in so much as the target is a name in the global
+# namespace with generator expressions and properties and things. So, first we
+# create a dummy executable
+cc_binary(protostruct-gen SRCS dummy-main.cc
+                               ${CMAKE_CURRENT_BINARY_DIR}/empty.cc)
+
+# Then, in the POST_BUILD commands, we delete the executable created by our
+# compiler, and replace it with the executable we constructed.
+add_custom_command(
+  TARGET protostruct-gen
+  POST_BUILD
+  COMMAND rm $<TARGET_FILE:protostruct-gen>
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/pyzip_exe_body.zip
+          $<TARGET_FILE:protostruct-gen>)
+
 # ======================
 # Protostruct elf-header
 # ======================
 
-get_version_from_header(protostruct-main.cc TANGENT_PROTOSTRUCT_VERSION)
+get_version_from_header(protostruct.h TANGENT_PROTOSTRUCT_VERSION)
+
+cc_library(
+  libprotostruct
+  SRCS protostruct.cc ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.cc
+       ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
+  DEPS argue tangent::util libclang Python::Embed
+  PKGDEPS libglog protobuf
+  PROPERTIES POSITION_INDEPENDENT_CODE ON
+             ARCHIVE_OUTPUT_NAME protostruct
+             LIBRARY_OUTPUT_NAME protostruct)
+target_include_directories(libprotostruct PUBLIC ${CLANG_INCLUDE_DIRS}
+                                                 ${CMAKE_BINARY_DIR})
+
+cc_binary(
+  protostruct-compile
+  SRCS protostruct-compile.cc
+  DEPS argue libprotostruct
+  PKGDEPS libglog
+  PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 cc_binary(
   protostruct
   SRCS protostruct-main.cc
-       ${CMAKE_CURRENT_BINARY_DIR}/descriptor_extensions.pb.cc
-       ${CMAKE_CURRENT_BINARY_DIR}/empty.cc
-  DEPS argue tangent::util libclang Python::Embed
-  PKGDEPS libglog protobuf
+  DEPS argue libprotostruct
+  PKGDEPS libglog
   PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
-target_include_directories(protostruct PUBLIC ${CLANG_INCLUDE_DIRS}
-                                              ${CMAKE_BINARY_DIR})
 
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/empty.cc
                             PROPERTIES GENERATED TRUE)

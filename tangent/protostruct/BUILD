@@ -50,16 +50,40 @@ cc_proto_library(
   deps = ["descriptor_extensions_proto"],
 )
 
+cc_library(
+  name = "libprotostruct",
+  srcs = ["protostruct.cc"],
+  hdrs = ["protostruct.h"],
+  deps = [
+    ":descriptor_extensions_cc_proto",
+    "//argue",
+    "@system//:glog",
+    "@system//:libclang",
+    "@system//:python-dev",
+  ],
+)
+
+cc_binary(
+  name = "protostruct-compile",
+  srcs = [
+    "protostruct-compile.cc",
+  ],
+  deps = [
+    ":libprotostruct",
+    "//argue",
+    "@system//:glog",
+  ],
+)
+
 cc_binary(
   name = "protostruct-header",
   srcs = [
     "protostruct-main.cc",
   ],
   deps = [
-    ":descriptor_extensions_cc_proto",
+    ":libprotostruct",
     "//argue",
-    "@system//:libclang",
-    "@system//:python-dev",
+    "@system//:glog",
   ],
 )
 
@@ -83,6 +107,13 @@ py_library(
     requirement("jinja2"),
     requirement("markupsafe"),
   ],
+)
+
+py_binary(
+  name = "protostruct-gen",
+  srcs = ["gen.py"],
+  main = "gen.py",
+  deps = [":protostruct_gen"],
 )
 
 py_binary(

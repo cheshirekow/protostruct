@@ -63,12 +63,15 @@ def main():
       "-b", "--bin-dir", help="path to the binary directory")
   args = parser.parse_args()
 
-  with zipfile.ZipFile(args.outfile, "w") as outfile:
-    for srcpath, dstpath in get_manifest(args.bin_dir):
-      outfile.write(srcpath, dstpath)
-    outfile.writestr("google/__init__.py", "")
-    outfile.writestr("tangent/__init__.py", "")
-    outfile.write(args.main, "__main__.py")
+  with open(args.outfile, "wb") as outraw:
+    outraw.write("#!/usr/bin/env python\n".encode("utf-8"))
+    with zipfile.ZipFile(outraw, "w") as outfile:
+      for srcpath, dstpath in get_manifest(args.bin_dir):
+        outfile.write(srcpath, dstpath)
+      outfile.writestr("google/__init__.py", "")
+      outfile.writestr("tangent/__init__.py", "")
+      outfile.write(args.main, "__main__.py")
+  os.chmod(args.outfile, 0o755)
 
 
 if __name__ == "__main__":

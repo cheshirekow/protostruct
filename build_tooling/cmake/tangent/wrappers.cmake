@@ -657,14 +657,15 @@ function(protostruct_compile)
 
   file(RELATIVE_PATH outdir "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 
-  set(cmd "$<TARGET_FILE:protostruct>" compile ${outdir}/${args_SRCFILE})
+  set(cmd "$<TARGET_FILE:protostruct-compile>")
   set(deps "${args_SRCFILE}")
   if(args_PROTO_SYNC)
-    list(APPEND cmd "--proto-in" "${args_PROTO_SYNC}")
+    list(APPEND cmd "--descriptor-set-in" "${args_PROTO_SYNC}")
     list(APPEND deps "${args_PROTO_SYNC}")
   endif()
 
-  list(APPEND cmd "--pb3-out" "${CMAKE_CURRENT_BINARY_DIR}/${args_PB3_OUT}")
+  list(APPEND cmd ${outdir}/${args_SRCFILE} "--pb3-out"
+       "${CMAKE_CURRENT_BINARY_DIR}/${args_PB3_OUT}")
 
   if(args_SOURCE_PATTERNS)
     list(APPEND cmd "--source-patterns" ${args_SOURCE_PATTERNS})
@@ -680,7 +681,7 @@ function(protostruct_compile)
 
   add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${args_PB3_OUT}"
-    DEPENDS ${deps} protostruct
+    DEPENDS ${deps} protostruct-compile
     COMMAND echo ${cmd}
     COMMAND ${cmd}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
@@ -727,10 +728,9 @@ function(protostruct_gen)
 
   add_custom_command(
     OUTPUT ${outs}
-    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${args_FDSET}" protostruct
-    COMMAND "$<TARGET_FILE:protostruct>" generate
-            --cpp-root ${CMAKE_BINARY_DIR}
-            ${fdset} ${args_TEMPLATES}
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${args_FDSET}" protostruct-gen
+    COMMAND "$<TARGET_FILE:protostruct-gen>" --descriptor-set-in ${fdset}
+            --cpp-root ${CMAKE_BINARY_DIR} ${args_TEMPLATES}
     # TODO(josh): figure out why a regular custom_command doesn't work to get
     # .clang format copied to the bintree
     COMMAND cp ${CMAKE_SOURCE_DIR}/.clang-format ${CMAKE_BINARY_DIR}/

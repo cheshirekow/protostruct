@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
   parser_meta.author = "Josh Biakowski <josh.bialkowski@gmail.com>";
   argue::Parser argparser{parser_meta};
   ProgramOptions popts{};
-  setup_parser(&argparser, &popts);
+  setup_parser_for_compile(&argparser, &popts);
 
   int parse_code = argparser.parse_args(argc, argv);
   switch (parse_code) {
@@ -31,24 +31,5 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (!popts.proto_inpaths.empty()) {
-    ARGUE_ASSERT(INPUT_ERROR, popts.descriptor_set_inpath.empty())
-        << "--proto-in and --descriptor-set-in are mutually exclusive. Pick "
-           "one or the other (prefer --descriptor-set-in)";
-
-    char template_str[] = "/tmp/protstruct-XXXXXX.proto.bin";
-    int fd = mkstemps(template_str, 10);
-    TANGENT_ASSERT(fd != -1) << "Failed to create temporary file";
-    popts.descriptor_set_inpath = template_str;
-    compile_descriptor_set(popts);
-  }
-
-  int result = 0;
-  if (popts.command == "compile") {
-    result = compile_main(popts);
-  }
-  if (popts.command == "generate") {
-    result = gen_main(popts);
-  }
-  return result;
+  return compile_main(popts);
 }

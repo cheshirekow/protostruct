@@ -62,18 +62,15 @@ def get_zipfile_path(modparent):
 
 def setup_argparse(argparser):
   argparser.add_argument(
-      "infile",
+      "--descriptor-set-in",
       help="path to the input file, which is a binary protocol buffer "
       "containing a serialized FileDescriptor")
   argparser.add_argument(
-      "--basename",
-      help="if provided, use this basename, instead of the basename of infile")
-  argparser.add_argument(
       "--proto-out", "--proto_out",
-      help="path to write .proto, if desired")
+      help="root of the source tree where to emit .proto files")
   argparser.add_argument(
       "--cpp-root", "--cpp_root",
-      help="root of the source tree where to emit files")
+      help="root of the source tree where to emit C++ files")
   argparser.add_argument(
       "templates", nargs="*",
       help="Only generate a specific set of outputs")
@@ -623,7 +620,7 @@ def main():
   args = argparser.parse_args()
 
   fileset = descriptor_pb2.FileDescriptorSet()
-  with io.open(args.infile, "rb") as infile:
+  with io.open(args.descriptor_set_in, "rb") as infile:
     fileset.ParseFromString(infile.read())
 
   zipfile_path, package_path = get_zipfile_path(
@@ -675,11 +672,10 @@ def main():
       gensource = filedescr.name
     relpath_outdir = "/".join(gensource.split("/")[:-1])
 
-    if not args.basename:
-      if not gensource:
-        logger.fatal(
-            "No basename specified and no filepath in the FileDescriptor proto")
-      args.basename = gensource.split("/")[-1].split(".")[0]
+    if not gensource:
+      logger.fatal(
+          "No basename specified and no filepath in the FileDescriptor proto")
+    basename = gensource.split("/")[-1].split(".")[0]
 
     suffixes = []
     for group in args.templates:
@@ -687,7 +683,7 @@ def main():
 
     process_pairs = []
     for suffix in suffixes:
-      outfile_name = args.basename + suffix
+      outfile_name = basename + suffix
       outfile_dir = os.path.join(args.cpp_root, relpath_outdir)
 
       if not os.path.exists(outfile_dir):
@@ -698,9 +694,9 @@ def main():
       process_pairs.append((outfile_path, template_name))
 
     if relpath_outdir:
-      include_base = os.path.join(relpath_outdir, args.basename)
+      include_base = os.path.join(relpath_outdir, basename)
     else:
-      include_base = args.basename
+      include_base = basename
 
     if args.proto_out:
       process_pairs.append((args.proto_out, "XXX.proto.jinja2"))
