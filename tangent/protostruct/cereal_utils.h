@@ -19,6 +19,9 @@ FixedCapacityArray<ValueType, SizeType> cereal_array(
   return {value_ptr, &size_ptr, N};
 }
 
+template<class T, size_t N>
+constexpr size_t array_size(T (&)[N]){ return N; }
+
 };  // namespace protostruct
 
 template <class Archive, class ValueType, class SizeType>

@@ -1,5 +1,7 @@
 // Copyright 2020 Josh Bialkowski <josh.bialkowski@gmail.com>
 #pragma once
+#include <stdalign.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 /// This is enum "A"
@@ -40,3 +42,27 @@ typedef struct MyMessageD {
   int32_t fieldA;
   bool fieldB;
 } MyMessageD;
+
+typedef struct TestFixedArray {
+  // This array is a fixed size with no associated capacity
+  double fixedSizedArray[10];
+} TestFixedArray;
+
+typedef struct TestAlignas {
+  // this field has an alignment specifier
+  alignas(16) float array[4];
+} TestAlignas;
+
+typedef struct TestPrimitives {
+  int8_t fieldA;
+  int16_t fieldB;
+  int32_t fieldC;
+  int64_t fieldD;
+  uint8_t fieldE;
+  uint16_t fieldF;
+  uint32_t fieldG;
+  uint64_t fieldH;
+  float fieldI;
+  double fieldJ;
+  bool fieldK;
+} TestPrimitives;

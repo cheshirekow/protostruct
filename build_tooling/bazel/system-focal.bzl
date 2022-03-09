@@ -13,7 +13,7 @@ cc_library(
     # NOTE(josh): linking to libdl.a is unusual, but is the default
     # if we allow this into the sandbox
     # "usr/lib/x86_64-linux-gnu/libdl.a",
-    "usr/lib/x86_64-linux-gnu/libdl.so.2",
+    "usr/lib/x86_64-linux-gnu/libdl.so",
   ],
   hdrs = ["usr/include/dlfcn.h"],
   strip_include_prefix = "usr/include",
@@ -30,28 +30,8 @@ cc_library(
 )
 
 cc_library(
-  name = "liblzma",
-  includes = ["usr/include"],
-  hdrs = glob(["usr/include/lzma/*.h"]),
-  strip_include_prefix="usr/include",
-  visibility = ["//visibility:public"],
-  srcs=[
-    "usr/lib/x86_64-linux-gnu/liblzma.a",
-    #"usr/lib/x86_64-linux-gnu/liblzma.so",
-    #"usr/lib/x86_64-linux-gnu/liblzma.so.5",
-    #"usr/lib/x86_64-linux-gnu/liblzma.so.5.2.5",
-  ]
-)
-
-cc_library(
   name = "libunwind",
-  deps = [":liblzma"],
-  srcs = [
-    #"usr/lib/x86_64-linux-gnu/libunwind.a",
-    "usr/lib/x86_64-linux-gnu/libunwind.so",
-    "usr/lib/x86_64-linux-gnu/libunwind.so.8",
-    "usr/lib/x86_64-linux-gnu/libunwind.so.8.0.1",
-  ],
+  srcs = ["usr/lib/x86_64-linux-gnu/libunwind.so.8"],
   visibility = ["//visibility:public"],
 )
 
@@ -60,9 +40,7 @@ cc_library(
   includes = ["usr/include"],
   srcs = [
     "usr/lib/x86_64-linux-gnu/libgflags.a",
-    #"usr/lib/x86_64-linux-gnu/libgflags.so",
-    #"usr/lib/x86_64-linux-gnu/libgflags.so.2.2",
-    #"usr/lib/x86_64-linux-gnu/libgflags.so.2.2.2",
+    "usr/lib/x86_64-linux-gnu/libgflags.so",
   ],
   hdrs = glob(["usr/include/gflags/**"]),
   # NOTE(josh): libunwind only needed for static link
@@ -76,9 +54,7 @@ cc_library(
   includes = ["usr/include"],
   srcs = [
     "usr/lib/x86_64-linux-gnu/libglog.a",
-    #"usr/lib/x86_64-linux-gnu/libglog.so",
-    #"usr/lib/x86_64-linux-gnu/libglog.so.0",
-    #"usr/lib/x86_64-linux-gnu/libglog.so.0.4.0",
+    "usr/lib/x86_64-linux-gnu/libglog.so",
   ],
   deps = [":libgflags"],
   hdrs = glob(["usr/include/glog/**"]),
@@ -91,9 +67,7 @@ cc_library(
   includes = ["usr/include"],
   srcs = [
     "usr/lib/x86_64-linux-gnu/libexpat.a",
-    #"usr/lib/x86_64-linux-gnu/libexpat.so",
-    #"usr/lib/x86_64-linux-gnu/libexpat.so.1",
-    #"usr/lib/x86_64-linux-gnu/libexpat.so.1.8.1",
+    "usr/lib/x86_64-linux-gnu/libexpat.so",
   ],
   hdrs = ["usr/include/expat.h"],
   strip_include_prefix = "usr/include",
@@ -106,8 +80,6 @@ cc_library(
   srcs = [
     "usr/lib/x86_64-linux-gnu/libpng16.a",
     "usr/lib/x86_64-linux-gnu/libpng16.so",
-    "usr/lib/x86_64-linux-gnu/libpng16.so.16",
-    "usr/lib/x86_64-linux-gnu/libpng16.so.16.37.0",
   ],
   hdrs = glob(["usr/include/libpng16/*.h"]),
   strip_include_prefix = "usr/include",
@@ -121,20 +93,9 @@ cc_library(
   srcs = [
     "usr/lib/x86_64-linux-gnu/libz.a",
     "usr/lib/x86_64-linux-gnu/libz.so",
-    "usr/lib/x86_64-linux-gnu/libz.so.1",
-    "usr/lib/x86_64-linux-gnu/libz.so.1.2.11",
   ],
   hdrs = ["usr/include/zconf.h", "usr/include/zlib.h"],
   strip_include_prefix = "usr/include",
-  visibility = ["//visibility:public"],
-)
-
-cc_library(
-  name = "libbrotli",
-  includes = ["usr/include"],
-  srcs = glob(["usr/lib/x86_64-linux-gnu/libbrotli*"]),
-  hdrs = glob(["usr/include/brotli/*.h"]),
-  strip_include_prefix = "",
   visibility = ["//visibility:public"],
 )
 
@@ -144,11 +105,9 @@ cc_library(
   srcs = [
     "usr/lib/x86_64-linux-gnu/libfreetype.a",
     "usr/lib/x86_64-linux-gnu/libfreetype.so",
-    "usr/lib/x86_64-linux-gnu/libfreetype.so.6",
-    "usr/lib/x86_64-linux-gnu/libfreetype.so.6.17.4",
   ],
   hdrs = glob(["usr/include/freetype2/**"]),
-  deps = [":libpng16", ":zlib", ":libbrotli"],
+  deps = [":libpng16", ":zlib"],
   strip_include_prefix = "usr/include/freetype2",
   visibility = ["//visibility:public"],
 )
@@ -159,11 +118,9 @@ cc_library(
   srcs = [
     "usr/lib/x86_64-linux-gnu/libfontconfig.a",
     "usr/lib/x86_64-linux-gnu/libfontconfig.so",
-    "usr/lib/x86_64-linux-gnu/libfontconfig.so.1",
-    "usr/lib/x86_64-linux-gnu/libfontconfig.so.1.12.0",
   ],
   hdrs = glob(["usr/include/fontconfig/**"]),
-  deps = [":expat", ":freetype2", ":zlib", ":libuuid"],
+  deps = [":expat", ":freetype2", ":zlib"],
   strip_include_prefix = "usr/include",
   visibility = ["//visibility:public"],
 )
@@ -174,8 +131,6 @@ cc_library(
   srcs = [
     "usr/lib/x86_64-linux-gnu/libfuse.a",
     "usr/lib/x86_64-linux-gnu/libfuse.so",
-    "usr/lib/x86_64-linux-gnu/libfuse.so.2",
-    "usr/lib/x86_64-linux-gnu/libfuse.so.2.9.9",
   ],
   hdrs = glob(["usr/include/fuse/**"]),
   deps = [":dl"],
@@ -187,10 +142,7 @@ cc_library(
 
 cc_library(
   name = "libidn",
-  srcs = [
-    "usr/lib/x86_64-linux-gnu/libidn2.so.0",
-    "usr/lib/x86_64-linux-gnu/libidn2.so.0.3.7"
-  ],
+  srcs = ["usr/lib/x86_64-linux-gnu/libcidn.so"],
   visibility = ["//visibility:public"],
 )
 
@@ -203,12 +155,7 @@ cc_library(
 cc_library(
   name = "libcurl",
   includes = ["usr/include"],
-  srcs = [
-    # "usr/lib/x86_64-linux-gnu/libcurl.a",
-    "usr/lib/x86_64-linux-gnu/libcurl.so",
-    "usr/lib/x86_64-linux-gnu/libcurl.so.4",
-    "usr/lib/x86_64-linux-gnu/libcurl.so.4.7.0",
-  ],
+  srcs = glob(["usr/lib/x86_64-linux-gnu/libcurl*.so"]),
   hdrs = glob(["usr/include/curl/**"]),
   strip_include_prefix = "usr/include",
   visibility = ["//visibility:public"],
@@ -234,11 +181,7 @@ cc_library(
 cc_library(
   name = "libudev",
   includes = ["usr/include"],
-  srcs = [
-    "usr/lib/x86_64-linux-gnu/libudev.so",
-    "usr/lib/x86_64-linux-gnu/libudev.so.1",
-    "usr/lib/x86_64-linux-gnu/libudev.so.1.7.1",
-  ],
+  srcs = ["lib/x86_64-linux-gnu/libudev.so"],
   hdrs = ["usr/include/libudev.h"],
   strip_include_prefix = "usr/include",
   visibility = ["//visibility:public"],
@@ -246,18 +189,14 @@ cc_library(
 
 cc_binary(
   name = "glslang",
-  srcs = ["usr/bin/glslangValidator"],
+  srcs = ["bin/glslangValidator"],
   visibility = ["//visibility:public"],
 )
 
 cc_library(
   name = "libvulkan",
   includes = ["usr/include"],
-  srcs = [
-    "usr/lib/x86_64-linux-gnu/libvulkan.so",
-    "usr/lib/x86_64-linux-gnu/libvulkan.so.1",
-    "usr/lib/x86_64-linux-gnu/libvulkan.so.1.2.162"
-  ],
+  srcs = glob(["usr/lib/x86_64-linux-gnu/libvulkan.so"]),
   hdrs = glob(["usr/include/vulkan/**"]),
   strip_include_prefix = "usr/include",
   visibility = ["//visibility:public"],
@@ -266,10 +205,7 @@ cc_library(
 cc_library(
   name = "libX11",
   includes = ["usr/include"],
-  srcs = glob([
-    "usr/lib/x86_64-linux-gnu/libX*.so",
-    "usr/lib/x86_64-linux-gnu/libX*.so.*"
-  ]),
+  srcs = glob(["usr/lib/x86_64-linux-gnu/libX*.so"]),
   hdrs = glob(["usr/include/X11/**"]),
   strip_include_prefix = "usr/include",
   visibility = ["//visibility:public"],
@@ -278,10 +214,7 @@ cc_library(
 cc_library(
   name = "libxcb",
   includes = ["usr/include"],
-  srcs = glob([
-    "usr/lib/x86_64-linux-gnu/libxcb*.so",
-    "usr/lib/x86_64-linux-gnu/libxcb*.so.*"
-  ]),
+  srcs = glob(["usr/lib/x86_64-linux-gnu/libxcb*.so"]),
   hdrs = glob(["usr/include/xcb/**"]),
   deps = [":libX11"],
   strip_include_prefix = "usr/include",
@@ -310,7 +243,7 @@ cc_library(
 
 cc_library(
   name = "libmount",
-  srcs = glob(["usr/lib/x86_64-linux-gnu/libmount.*"]),
+  srcs = glob(["lib/x86_64-linux-gnu/libmount.*"]),
   visibility = ["//visibility:public"],
 )
 
@@ -349,7 +282,11 @@ cc_library(
     "usr/include/loki/flex/*",
     "usr/include/loki/yasli/*",
   ]),
-  srcs = glob(["usr/lib/libloki.*"]),
+  srcs = glob([
+    "usr/lib/libloki.so.0.1.7",
+    "usr/lib/libloki.so",
+    "usr/lib/libloki.a",
+  ]),
   visibility = ["//visibility:public"],
 )
 
@@ -523,14 +460,8 @@ cc_library(
 cc_library(
   name = "harfbuzz",
   includes = ["usr/include/harfbuzz"],
-  hdrs = glob([
-    "usr/include/harfbuzz/*.h",
-    "usr/include/harfbuzz/**/*.h"
-  ]),
-  srcs = glob([
-    "usr/lib/x86_64-linux-gnu/libharfbuzz.*",
-    "usr/lib/x86_64-linux-gnu/libharfbuzz-*.*"
-  ]),
+  hdrs = glob(["usr/include/harfbuzz/**/*.h"]),
+  srcs = glob(["usr/lib/x86_64-linux-gnu/libharfbuzz.*"]),
   deps = [":glib-2.0", ":graphite2"],
   visibility = ["//visibility:public"],
 )
@@ -540,7 +471,7 @@ cc_library(
   includes = ["usr/include/pango-1.0"],
   hdrs = glob(["usr/include/pango-1.0/**/*.h"]),
   srcs = glob(["usr/lib/x86_64-linux-gnu/libpango-1.0.*"]),
-  deps = [":glib-2.0", ":gobject-2.0", ":libthai", ":harfbuzz"],
+  deps = [":glib-2.0", ":gobject-2.0", ":libthai"],
   visibility = ["//visibility:public"],
 )
 
@@ -580,19 +511,11 @@ cc_library(
 # ------------------------------
 
 cc_library(
-  name = "atkmm-1.6-config",
-  hdrs = ["usr/lib/x86_64-linux-gnu/atkmm-1.6/include/atkmmconfig.h"],
-  includes = ["usr/lib/x86_64-linux-gnu/atkmm-1.6/include"],
-  strip_include_prefix = "usr/lib/x86_64-linux-gnu/atkmm-1.6/include",
-  visibility = ["//visibility:public"],
-)
-
-cc_library(
   name = "atkmm-1.6",
   includes = ["usr/include/atkmm-1.6"],
   hdrs = glob(["usr/include/atkmm-1.6/**/*.h"]),
   srcs = glob(["usr/lib/x86_64-linux-gnu/libatkmm-1.6.*"]),
-  deps = [":atk-1.0", ":glibmm-2.4", ":atkmm-1.6-config"],
+  deps = [":atk-1.0", ":glibmm-2.4"],
   visibility = ["//visibility:public"],
 )
 
@@ -774,69 +697,75 @@ cc_library(
   hdrs = glob([
     "usr/include/fmt/*.h",
   ]),
-  srcs = glob(["usr/lib/x86_64-linux-gnu/libfmt.*"]),
+  srcs = glob(["usr/lib/libfmt.*"]),
   visibility = ["//visibility:public"],
 )
 
 cc_library(
   name = "python-dev",
   srcs = [
-    "usr/lib/x86_64-linux-gnu/libpython3.9.so.1",
-    "usr/lib/x86_64-linux-gnu/libpython3.9.so.1.0",
-    "usr/lib/x86_64-linux-gnu/libpython3.9.so",
-    # "usr/lib/x86_64-linux-gnu/libpython3.9.a",
-    "usr/lib/python3.9/config-3.9-x86_64-linux-gnu/libpython3.9-pic.a",
-    "usr/lib/python3.9/config-3.9-x86_64-linux-gnu/libpython3.9.so",
-    "usr/lib/python3.9/config-3.9-x86_64-linux-gnu/libpython3.9.a",
+    "usr/lib/python3.6/config-3.6m-x86_64-linux-gnu/libpython3.6.so",
+    "usr/lib/x86_64-linux-gnu/libpython3.6m.so.1.0",
+    "usr/lib/x86_64-linux-gnu/libpython3.6m.so.1",
   ],
-  hdrs = glob([
-    "usr/include/python3.9/*.h",
-    "usr/include/python3.9/**/*.h",
-    ]),
-  deps = [":zlib", "expat"],
-  includes = ["usr/include/python3.9"],
+  hdrs = glob(["usr/include/python3.6m/*.h"]),
+  includes = ["usr/include/python3.6m"],
   visibility = ["//visibility:public"],
 )
 
 cc_library(
   name = "libllvm",
   srcs = [
-    "usr/lib/llvm-13/lib/libLLVM.so",
-    "usr/lib/llvm-13/lib/libLLVM-13.so",
-    "usr/lib/llvm-13/lib/libLLVM-13.so.1",
+    "usr/lib/llvm-8/lib/libLLVM.so",
+    "usr/lib/llvm-8/lib/libLLVM-8.so",
   ],
-  hdrs = glob(["usr/lib/llvm-13/include/llvm-c/*.h"]),
-  includes = ["usr/lib/llvm-13/include"],
+  hdrs = glob(["usr/lib/llvm-8/include/llvm-c/*.h"]),
+  includes = ["usr/lib/llvm-8/include"],
   visibility = ["//visibility:public"],
 )
 
 cc_library(
   name = "libclang",
-  srcs = glob([
-    "usr/lib/llvm-13/lib/libclang*",
-  ]) + [
-    # "usr/lib/x86_64-linux-gnu/libclang-13.so",
-    # "usr/lib/x86_64-linux-gnu/libclang-13.so.1",
-    "usr/lib/x86_64-linux-gnu/libclang-13.so.13",
-    "usr/lib/x86_64-linux-gnu/libclang-13.so.13.0.0",
+  srcs = [
+    "usr/lib/llvm-8/lib/libclang-8.0.0.so",
+    "usr/lib/llvm-8/lib/libclang-8.so",
+    "usr/lib/llvm-8/lib/libclang-8.so.1",
+    "usr/lib/x86_64-linux-gnu/libclang-8.so",
+    "usr/lib/x86_64-linux-gnu/libclang-8.so.1",
   ],
-  deps = [":libllvm"],
-  hdrs = glob(["usr/lib/llvm-13/include/clang-c/*.h"]),
-  includes = ["usr/lib/llvm-13/include"],
+  deps = ["libllvm"],
+  hdrs = glob(["usr/lib/llvm-8/include/clang-c/*.h"]),
+  includes = ["usr/lib/llvm-8/include"],
   visibility = ["//visibility:public"],
 )
 
 py_runtime(
-  name = "python-3.9.7",
-  files = glob(["usr/lib/python3.9/*"]),
-  interpreter = "usr/bin/python3.9",
+  name = "python-3.6.6",
+  files = glob(["usr/lib/python3.6/*"]),
+  interpreter = "usr/bin/python3.6",
   python_version = "PY3",
 )
 
+py_runtime(
+  name = "python-2.7.17",
+  files = glob(["usr/lib/python2.7/*"]),
+  interpreter = "usr/bin/python2.7",
+  python_version = "PY2",
+)
 
 py_runtime_pair(
   name = "py_runtime",
-  py3_runtime = ":python-3.9.7",
+  py2_runtime = ":python-2.7.17",
+  py3_runtime = ":python-3.6.6",
+)
+
+cc_library(
+  name = "libzip-config",
+  hdrs = [
+    "usr/lib/x86_64-linux-gnu/libzip/include/zipconf.h",
+  ],
+  strip_include_prefix = "usr/lib/x86_64-linux-gnu/libzip/include",
+  visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -844,12 +773,13 @@ cc_library(
   srcs = [
     "usr/lib/x86_64-linux-gnu/libzip.so.4",
     "usr/lib/x86_64-linux-gnu/libzip.so",
-    "usr/lib/x86_64-linux-gnu/libzip.so.4.0",
+    "usr/lib/x86_64-linux-gnu/libzip.so.4.0.0",
+    "usr/lib/x86_64-linux-gnu/libzip.a",
   ],
   hdrs = [
     "usr/include/zip.h",
   ],
-  deps = [":zlib"],
+  deps = [":zlib", ":libzip-config"],
   strip_include_prefix = "usr/include",
   visibility = ["//visibility:public"],
 )
@@ -858,8 +788,6 @@ cc_library(
   name = "libuuid",
   srcs = [
     "usr/lib/x86_64-linux-gnu/libuuid.so",
-    "usr/lib/x86_64-linux-gnu/libuuid.so.1",
-    "usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0",
     "usr/lib/x86_64-linux-gnu/libuuid.a",
   ],
   hdrs = ["usr/include/uuid/uuid.h"],
@@ -877,9 +805,10 @@ cc_library(
   name = "libcrypto",
   hdrs = [],
   srcs = [
+    "usr/lib/x86_64-linux-gnu/libcrypto.so.1.0.0",
+    "usr/lib/x86_64-linux-gnu/libcrypto.so.1.1",
     "usr/lib/x86_64-linux-gnu/libcrypto.a",
     "usr/lib/x86_64-linux-gnu/libcrypto.so",
-    "usr/lib/x86_64-linux-gnu/libcrypto.so.1.1",
   ],
   includes = ["usr/include"],
   visibility = ["//visibility:public"],
@@ -889,10 +818,11 @@ cc_library(
   name = "libssl",
   hdrs = [],
   srcs = [
-    "usr/lib/x86_64-linux-gnu/libssl.a",
+    "usr/lib/x86_64-linux-gnu/libssl.so.1.0.0",
+    "usr/lib/x86_64-linux-gnu/libssl3.so",
     "usr/lib/x86_64-linux-gnu/libssl.so",
     "usr/lib/x86_64-linux-gnu/libssl.so.1.1",
-    "usr/lib/x86_64-linux-gnu/libssl3.so",
+    "usr/lib/x86_64-linux-gnu/libssl.a",
   ],
   includes = ["usr/include"],
   visibility = ["//visibility:public"],
@@ -901,14 +831,28 @@ cc_library(
 cc_library(
   name = "libgssapi",
   srcs = [
-    #"usr/lib/x86_64-linux-gnu/libgssapi.so.3",
-    #"usr/lib/x86_64-linux-gnu/libgssapi.so.3.0.0",
+    "usr/lib/x86_64-linux-gnu/libgssapi.so.3",
+    "usr/lib/x86_64-linux-gnu/libgssapi.so.3.0.0",
     "usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2",
     "usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2.2",
   ],
   includes = ["usr/include"],
   visibility = ["//visibility:public"],
 )
+
+cc_library(
+  name = "libssh_threads",
+  hdrs = ["usr/include/libssh/callbacks.h"],
+  visibility = ["//visibility:public"],
+  includes = ["usr/include"],
+  srcs = [
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4.5.0",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so.4",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.a",
+    "usr/lib/x86_64-linux-gnu/libssh_threads.so",
+  ],
+)
+
 
 cc_library(
   name = "libssh",
@@ -922,12 +866,12 @@ cc_library(
   ],
   includes = ["usr/include"],
   visibility = ["//visibility:public"],
-  deps = [":libcrypto", ":libssl", ":libgssapi"],
+  deps = [":libcrypto", ":libssl", ":libgssapi", ":libssh_threads"],
   srcs = [
-    "usr/lib/x86_64-linux-gnu/libssh.a",
-    "usr/lib/x86_64-linux-gnu/libssh.so",
+    "usr/lib/x86_64-linux-gnu/libssh.so.4.5.0",
     "usr/lib/x86_64-linux-gnu/libssh.so.4",
-    "usr/lib/x86_64-linux-gnu/libssh.so.4.8.7",
+    "usr/lib/x86_64-linux-gnu/libssh.so",
+    "usr/lib/x86_64-linux-gnu/libssh.a",
   ],
 )
 
@@ -937,12 +881,13 @@ cc_library(
   visibility = ["//visibility:public"],
   hdrs = [
     "usr/include/librsvg-2.0/librsvg/rsvg.h",
+    "usr/include/librsvg-2.0/librsvg/librsvg-enum-types.h",
     "usr/include/librsvg-2.0/librsvg/librsvg-features.h",
     "usr/include/librsvg-2.0/librsvg/rsvg-cairo.h",
   ],
   srcs = [
-    "usr/lib/x86_64-linux-gnu/librsvg-2.so",
+    "usr/lib/x86_64-linux-gnu/librsvg-2.so.2.40.20",
     "usr/lib/x86_64-linux-gnu/librsvg-2.so.2",
-    "usr/lib/x86_64-linux-gnu/librsvg-2.so.2.47.0",
+    "usr/lib/x86_64-linux-gnu/librsvg-2.so",
   ],
 )

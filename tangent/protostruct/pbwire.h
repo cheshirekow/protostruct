@@ -17,10 +17,16 @@ extern "C" {
 /* GCC is awesome. */
 #if __GNUC__
 // clang-format off
+#if __cplusplus
+#define ARRAY_SIZE(a)                               \
+  ((sizeof(a) / sizeof(*(a))) /                     \
+  static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
+#else
 #define ARRAY_SIZE(arr)                                        \
   (sizeof(arr) / sizeof((arr)[0]) +                            \
     sizeof(typeof(int[1 - 2 * !!__builtin_types_compatible_p(  \
       typeof(arr), typeof(&arr[0]))])) * 0)
+#endif
 // clang-format on
 #else
 #define ARRAY_SIZE(arr) \
@@ -56,46 +62,44 @@ inline uint32_t pbwire_zigzag32(int32_t value) {
   // NOTE(josh): in python we could do this:
   // return (value << 1) ^ (value >> 31);
   // but in C/C++ we aren't allowed to left shift a signed value
-#ifdef __cplusplus
+  uint32_t unsigned_value = 0;
   if (value < 0) {
-    return (static_cast<uint32_t>(-value) << 1) - 1;
+    value = -value;
+    memcpy(&unsigned_value, &value, sizeof(uint32_t));
+    return (unsigned_value << 1) - 1;
   } else {
-    return static_cast<uint32_t>(value) << 1;
+    memcpy(&unsigned_value, &value, sizeof(uint32_t));
+    return unsigned_value << 1;
   }
-#else
-  if (value < 0) {
-    return ((uint32_t)(-value) << 1) - 1;
-  } else {
-    return (uint32_t)(value) << 1;
-  }
-#endif
 }
 
 inline int32_t pbwire_unzigzag32(uint32_t value) {
-  return (value >> 1) ^ -(value & 1);
+  uint32_t unsigned_output =  (value >> 1) ^ -(value & 1);
+  int32_t signed_output = 0;
+  memcpy(&signed_output, &unsigned_output, sizeof(uint32_t));
+  return unsigned_output;
 }
 
 inline uint64_t pbwire_zigzag64(int64_t value) {
   // NOTE(josh): in python we could do this:
   // return (value << 1) ^ (value >> 63);
   // but in C/C++ we aren't allowed to left shift a signed value
-#ifdef __cplusplus
+  uint64_t unsigned_value = 0;
   if (value < 0) {
-    return (static_cast<uint64_t>(-value) << 1) - 1;
+    value = -value;
+    memcpy(&unsigned_value, &value, sizeof(uint64_t));
+    return (unsigned_value << 1) - 1;
   } else {
-    return static_cast<uint64_t>(value) << 1;
+    memcpy(&unsigned_value, &value, sizeof(uint64_t));
+    return unsigned_value << 1;
   }
-#else
-  if (value < 0) {
-    return ((uint64_t)(-value) << 1) - 1;
-  } else {
-    return (uint64_t)(value) << 1;
-  }
-#endif
 }
 
-inline int32_t pbwire_unzigzag64(uint64_t value) {
-  return (value >> 1) ^ -(value & 1);
+inline int64_t pbwire_unzigzag64(uint64_t value) {
+  uint64_t unsigned_output = (value >> 1) ^ -(value & 1);
+  int64_t signed_output = 0;
+  memcpy(&signed_output, &unsigned_output, sizeof(uint64_t));
+  return signed_output;
 }
 
 /* ============================ Parsing Funtions ============================ */

@@ -26,7 +26,7 @@
 #include "tangent/util/stringutil.h"
 
 #define TANGENT_PROTOSTRUCT_VERSION \
-  { 0, 2, 0, "dev", 0 }
+  { 0, 2, 0, "dev", 1 }
 
 // NOTE(josh): to self, see:
 // https://developers.google.com/protocol-buffers/docs/reference/cpp#google.protobuf.compiler
@@ -188,7 +188,8 @@ void setup_parser(argue::Parser* parser, ProgramOptions* opts) {
         .help="`compile` a proto description from an existing header, or `gen`"
         " bindings from a proto description"});
 
-  auto compile_parser = subparsers->add_parser("compile", {.help="compile a proto description from an existing header"});
+  auto compile_parser = subparsers->add_parser(
+      "compile", {.help="compile a proto description from an existing header"});
 
   compile_parser->add_argument(
       "sourcefile", dest=&(opts->compile_opts.source_filepath), nargs='?',
@@ -387,8 +388,8 @@ void get_compatible(
       return;
 
     case CXType_UInt:
-      out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_INT32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_UINT32);
+      out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_INT32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_FIXED32);
       TANGENT_FALLTHROUGH
     case CXType_ULong:
@@ -554,6 +555,7 @@ class VisitorContext {
       : tunit_{tunit},
         source_filepath_{source_filepath},
         file_proto_{file_proto} {
+    (void)tunit_;
     file_of_interest_ = clang_getFile(tunit, source_filepath.c_str());
     fd_ = open(source_filepath_.c_str(), O_RDONLY);
     PLOG_IF(FATAL, fd_ == -1) << "Failed to open" << source_filepath_;
@@ -593,7 +595,7 @@ class VisitorContext {
 
   google::protobuf::FileDescriptorProto* file_proto() {
     return file_proto_;
-  };
+  }
 
   std::map<std::string, std::string>& macros() {
     return macros_;
@@ -969,7 +971,7 @@ google::protobuf::DescriptorProto* find_message(
 /// definitions and dispatch specific visitors for each.
 class FileVisitor : public ClangVisitor {
  public:
-  FileVisitor(VisitorContext* ctx) : ctx_{ctx} {}
+  explicit FileVisitor(VisitorContext* ctx) : ctx_{ctx} {}
 
   CXChildVisitResult visit(CXCursor c, CXCursor parent) override {
     CXSourceLocation cursor_location = clang_getCursorLocation(c);
@@ -1169,6 +1171,9 @@ int compile_main(const ProgramOptions& popts) {
 
   std::string proto_inpath = copts.proto_inpath;
   if (proto_inpath.empty()) {
+    // If a synchronization proto was not provided, default to the output
+    // proto. That way, if the output proto already exists, we will read
+    // it in and preserve any choices that were made.
     proto_inpath = proto_outpath;
   }
 
@@ -1180,8 +1185,14 @@ int compile_main(const ProgramOptions& popts) {
   google::protobuf::FileDescriptorProto fileproto{};
   if (!descr_db.FindFileByName(proto_inpath, &fileproto)) {
     if (proto_inpath == proto_outpath) {
+      // If the input proto for synchronization is the same as the output
+      // proto, then it is not a an error if the output proto doesn't exist.
+      // On the first invocation, we would expect it not to exist.
       LOG(WARNING) << "Failed to import " << proto_inpath;
     } else {
+      // If the input proto for synchronization is anything else, then the user
+      // explicitly provided a filename and almost certainly expects it to exist
+      // (and thus, it is an error if that file doesn't exist).
       LOG(FATAL) << "Failed to import " << proto_inpath;
       exit(1);
     }

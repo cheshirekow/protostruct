@@ -23,19 +23,20 @@ http_archive(
 )
 
 http_archive(
-    name = "com_google_protobuf",
-    sha256 = "9b4ee22c250fe31b16f1a24d61467e40780a3fbb9b91c3b65be2a376ed913a1a",
-    strip_prefix = "protobuf-3.13.0",
-    urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.13.0.tar.gz"],
+  name = "com_google_protobuf",
+  sha256 = "9b4ee22c250fe31b16f1a24d61467e40780a3fbb9b91c3b65be2a376ed913a1a",
+  strip_prefix = "protobuf-3.13.0",
+  urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.13.0.tar.gz"],
 )
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+
 protobuf_deps()
 
 http_archive(
-    name = "rules_python",
-    url = "https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz",
-    sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
+  name = "rules_python",
+  sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
+  url = "https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz",
 )
 
 load("@rules_cc//cc:repositories.bzl", "rules_cc_dependencies")
@@ -59,6 +60,7 @@ load(
 )
 
 rules_proto_dependencies()
+
 rules_proto_toolchains()
 
 new_local_repository(
@@ -68,9 +70,10 @@ new_local_repository(
 )
 
 load("@rules_python//python:pip.bzl", "pip_install")
+
 pip_install(
   name = "pip_deps",
-  requirements = "//build_tooling:pip-requirements.txt",
+  requirements = "//build_tooling:docker/build_image/pip-requirements.txt",
 )
 
 register_toolchains("//:py_toolchain")

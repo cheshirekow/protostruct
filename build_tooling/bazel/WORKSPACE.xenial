@@ -70,7 +70,7 @@ new_local_repository(
 load("@rules_python//python:pip.bzl", "pip_install")
 pip_install(
   name = "pip_deps",
-  requirements = "//build_tooling:pip-requirements.txt",
+  requirements = "//build_tooling:docker/build_image/pip-requirements.txt",
 )
 
 register_toolchains("//:py_toolchain")

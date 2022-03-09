@@ -27,11 +27,18 @@ template <class Archive>
 void serialize(Archive& archive, {{descr.name}}& cobj){
 {% for fielddescr in descr.field %}
   {% if is_repeated(fielddescr) %}
+    {% if get_lengthfield(fielddescr) %}
+    {% set countvar = "cobj." + get_lengthfield(fielddescr) %}
+    {% else %}
+    int {{fielddescr.name}}Count = protostruct::array_size(cobj.{{fielddescr.name}});
+    {% set countvar = fielddescr.name + "Count" %}
+    {% endif %}
+
     archive(cereal::make_nvp(
       "{{fielddescr.name}}",
       protostruct::cereal_array(
         cobj.{{fielddescr.name}},
-        cobj.{{get_lengthfield(fielddescr)}})));
+        {{countvar}})));
   {% else %}
     archive(cereal::make_nvp("{{fielddescr.name}}", cobj.{{fielddescr.name}}));
   {% endif %}

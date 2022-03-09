@@ -9,6 +9,7 @@ load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
 load("@pip_deps//:requirements.bzl", "requirement")
+load(":tools.bzl", "protostruct_compile", "protostruct_gen")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -125,55 +126,26 @@ genrule(
   """,
 )
 
-genrule(
-  name = "gen-test_messages.pb3",
-  srcs = [
-    "test/test_messages.h",
-    "test/test_in.proto",
-  ],
-  outs = [
-    "test/test_messages.pb3",
-    "test/test_messages.proto",
-  ],
-  cmd = """\
-    $(execpath protostruct) \
-      --proto-path tangent/protostruct/test \
-      compile tangent/protostruct/test/test_messages.h \
-      --proto-in test_in.proto \
-      --proto-out $(RULEDIR)/test/test_messages.proto \
-      --pb3-out $(RULEDIR)/test/test_messages.pb3 \
-      -- -I .
-    """,
-  tools = ["protostruct"],
+protostruct_compile(
+  proto_path = ["tangent/protostruct"],
+  name = "protoc-test_messages",
+  header = "test/test_messages.h",
+  proto_sync = "test/test_in.proto",
+  proto_out = "test/test_messages.proto",
+  pb3_out = "test/test_messages.pb3",
+  enforce = False
 )
 
-genrule(
-  name = "gen-test_messages.star",
-  srcs = [
-    "test/test_messages.pb3",
-  ],
-  outs = [
-    "test/test_messages-recon.h",
-    "test/test_messages-simple.h",
-    "test/test_messages-simple.cc",
-    "test/test_messages.cereal.h",
-    "test/test_messages.pbwire.h",
-    "test/test_messages.pbwire.c",
-    "test/test_messages.pb2c.h",
-    "test/test_messages.pb2c.cc",
-  ],
-  cmd = """\
-    $(execpath protostruct) generate \
-      --cpp-root $(GENDIR) $< \
-      cpp-simple cereal pbwire pb2c recon
-  """,
-  tools = ["protostruct"],
+protostruct_gen(
+  name = "protog-test_messages",
+  proto = "test/test_messages.pb3",
+  templates = ["cpp-simple", "cereal", "pbwire", "pb2c", "recon"],
 )
 
 proto_library(
   name = "test_messages_proto",
   srcs = ["test/test_messages.proto"],
-  deps = [":descriptor_extensions_proto"]
+  deps = [":descriptor_extensions_proto"],
 )
 
 cc_proto_library(
@@ -184,15 +156,15 @@ cc_proto_library(
 cc_library(
   name = "test-messages",
   srcs = [
-    "test/test_messages-recon.h",
-    "test/test_messages-simple.h",
-    "test/test_messages-simple.cc",
     "test/test_messages.cereal.h",
     "test/test_messages.h",
     "test/test_messages.pb2c.cc",
     "test/test_messages.pb2c.h",
     "test/test_messages.pbwire.c",
     "test/test_messages.pbwire.h",
+    "test/test_messages-recon.h",
+    "test/test_messages-simple.cc",
+    "test/test_messages-simple.h",
   ],
   linkstatic = True,
   deps = [
@@ -214,3 +186,24 @@ cc_test(
     "//third_party/googletest:gtest_main",
   ],
 )
+
+py_binary(
+  name = "make-release",
+  srcs = ["make_release.py"],
+  main = "make_release.py"
+)
+
+genrule(
+  name = "release",
+  outs = ["protostruct-0.2.0dev1.tar.gz"],
+  cmd = """
+  $(location :make-release) \
+    --protostruct-path $(location :protostruct) \
+    --protostruct-header-path $(location :protostruct-header) \
+    --tools-bzl-path $(location tools.bzl) \
+    --outfile $@
+  """,
+  srcs = ["tools.bzl"],
+  tools = [":make-release", ":protostruct", ":protostruct-header"]
+  )
+

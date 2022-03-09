@@ -36,8 +36,15 @@ void pb2c(const {{fqn_typename_cpp(descr)}}& proto, {{descr.name}}* cobj){
   {% set cfield = fielddescr.name %}
   {% set protofield = fielddescr.name.lower() %}
   {% if is_repeated(fielddescr) %}
-    cobj->{{get_lengthfield(fielddescr)}} = std::min<int>(proto.{{protofield}}_size(), {{get_arraysize(fielddescr)}});
-    for(int idx=0; idx < static_cast<int>(cobj->{{get_lengthfield(fielddescr)}}); idx++){
+    {% if get_lengthfield(fielddescr) %}
+    {% set countvar = "cobj->" + get_lengthfield(fielddescr) %}
+    {% else %}
+    int {{fielddescr.name}}Count;
+    {% set countvar = fielddescr.name + "Count" %}
+    {% endif %}
+
+    {{countvar}} = std::min<int>(proto.{{protofield}}_size(), {{get_arraysize(fielddescr)}});
+    for(int idx=0; idx < static_cast<int>({{countvar}}); idx++){
       {% if is_primitive(fielddescr) %}
         cobj->{{cfield}}[idx] = proto.{{protofield}}(idx);
       {% else %}
@@ -61,9 +68,15 @@ void c2pb(const {{descr.name}}& cobj, {{fqn_typename_cpp(descr)}}* proto){
   {% set cfield = fielddescr.name %}
   {% set protofield = fielddescr.name.lower() %}
   {% if is_repeated(fielddescr) %}
+    {% if get_lengthfield(fielddescr) %}
+    {% set countvar = "cobj." + get_lengthfield(fielddescr) %}
+    {% else %}
+    {% set countvar = "ARRAY_SIZE(cobj." + fielddescr.name + ")" %}
+    {% endif %}
+
     proto->mutable_{{protofield}}()->Clear();
-    proto->mutable_{{protofield}}()->Reserve(cobj.{{get_lengthfield(fielddescr)}});
-    for(int idx=0; idx < static_cast<int>(cobj.{{get_lengthfield(fielddescr)}}); idx++){
+    proto->mutable_{{protofield}}()->Reserve({{countvar}});
+    for(int idx=0; idx < static_cast<int>({{countvar}}); idx++){
       {% if is_primitive(fielddescr) %}
         proto->add_{{protofield}}(cobj.{{cfield}}[idx]);
       {% else %}

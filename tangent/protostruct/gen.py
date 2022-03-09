@@ -7,7 +7,6 @@ import io
 import json
 import logging
 import os
-import sys
 import zipfile
 
 import jinja2
@@ -77,6 +76,7 @@ def setup_argparse(argparser):
   argparser.add_argument(
       "templates", nargs="*",
       help="Only generate a specific set of outputs")
+
 
 def get_proto_typename(typeid):
   proto = descriptor_pb2.FieldDescriptorProto
@@ -243,7 +243,7 @@ def get_arraysize(descr):
     raise ValueError("Missing options extension for %s" % descr)
 
   if not options.HasField("capacity"):
-    raise ValueError("Missing capacity option for %s -- %s" % (descr,options))
+    raise ValueError("Missing capacity option for %s -- %s" % (descr, options))
 
   if options.capname:
     return options.capname
@@ -344,10 +344,13 @@ def get_options(fielddescr):
       opsdict["capname"] = psopts.capname
 
     if len(opsdict) > 1:
-      options.append("(protostruct.fieldopts) = {%s}" % text_format.MessageToString(psopts, as_one_line=True))
+      options.append(
+          "(protostruct.fieldopts) = {%s}"
+          % text_format.MessageToString(psopts, as_one_line=True))
     elif opsdict:
       for key, value in opsdict.items():
-        options.append("(protostruct.fieldopts).{}={}".format(key, json.dumps(value)))
+        options.append(
+            "(protostruct.fieldopts).{}={}".format(key, json.dumps(value)))
 
   if not options:
     return ""
@@ -647,7 +650,6 @@ def main():
       TYPE_MESSAGE=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE,
   )
 
-
   gensource = get_header_filepath(filedescr)
   relpath_outdir = "/".join(gensource.split("/")[:-1])
 
@@ -688,6 +690,9 @@ def main():
         include_base=include_base)
     if outpath == "-":
       outpath = os.dup(1)
+    outdir = os.path.dirname(outpath)
+    if not os.path.exists(outdir):
+      os.makedirs(outdir)
     with io.open(outpath, "w", encoding="utf-8") as outfile:
       outfile.write(content)
       outfile.write("\n")

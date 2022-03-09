@@ -1,5 +1,5 @@
 // NOTE(josh): the protocol buffers documentation suggests perhaps putting
-// the `extend`` declaration inside the message definition. However, extension
+// the `extend` declaration inside the message definition. However, extension
 // names shared the global namespace and must be fully qualified, so if you
 // put the `extend` inside FileOptions (e.g.) then it'll have to be used like
 // the following::
@@ -8,7 +8,7 @@
 //
 // Which is super verbose. The alternative, as we do below, however, means that
 // the extension we use for each descriptor type needs a unique name. They
-// canot, e.g. all be called e.g. `opts`. However, since usage is fully
+// canot, e.g. all be called `opts`. However, since usage is fully
 // qualified, it is not possible to use something like `prostruct.opts` for
 // all message types.
 //

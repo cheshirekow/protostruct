@@ -6,12 +6,13 @@
 /.vscode
 /pylintrc
 
+/argue
+
 /build_tooling/bazel
 /build_tooling/cmake
 /build_tooling/lint-excludes.txt
 
 /CMakeLists.txt
-/cmake/*
 /doc/conf.py
 /doc/sphinx-static
 /doc/find_rst.py
@@ -22,7 +23,10 @@
 /tangent/tooling/*.py
 /tangent/tooling/CMakeLists.txt
 /tangent/tooling/sparse-exports/protostruct
+/tangent/util
 
+/third_party/BUILD
 /third_party/CMakeLists.txt
 /third_party/cereal
+/third_party/fmt
 /third_party/googletest
