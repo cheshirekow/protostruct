@@ -58,10 +58,12 @@ void pb2c(const tangent::test::MyMessageC& proto, MyMessageC* cobj) {
   for (int idx = 0; idx < static_cast<int>(cobj->fieldACount); idx++) {
     pb2c(proto.fielda(idx), &cobj->fieldA[idx]);
   }
+
   cobj->fieldBCount = std::min<int>(proto.fieldb_size(), FIELD_B_CAPACITY);
   for (int idx = 0; idx < static_cast<int>(cobj->fieldBCount); idx++) {
     cobj->fieldB[idx] = proto.fieldb(idx);
   }
+
   cobj->fieldCCount = std::min<int>(proto.fieldc_size(), FIELD_C_CAPACITY);
   for (int idx = 0; idx < static_cast<int>(cobj->fieldCCount); idx++) {
     cobj->fieldC[idx] = proto.fieldc(idx);
@@ -74,14 +76,79 @@ void c2pb(const MyMessageC& cobj, tangent::test::MyMessageC* proto) {
   for (int idx = 0; idx < static_cast<int>(cobj.fieldACount); idx++) {
     c2pb(cobj.fieldA[idx], proto->add_fielda());
   }
+
   proto->mutable_fieldb()->Clear();
   proto->mutable_fieldb()->Reserve(cobj.fieldBCount);
   for (int idx = 0; idx < static_cast<int>(cobj.fieldBCount); idx++) {
     proto->add_fieldb(cobj.fieldB[idx]);
   }
+
   proto->mutable_fieldc()->Clear();
   proto->mutable_fieldc()->Reserve(cobj.fieldCCount);
   for (int idx = 0; idx < static_cast<int>(cobj.fieldCCount); idx++) {
     proto->add_fieldc(cobj.fieldC[idx]);
   }
+}
+
+void pb2c(const tangent::test::TestFixedArray& proto, TestFixedArray* cobj) {
+  int fixedSizedArrayCount;
+
+  fixedSizedArrayCount = std::min<int>(proto.fixedsizedarray_size(), 10);
+  for (int idx = 0; idx < static_cast<int>(fixedSizedArrayCount); idx++) {
+    cobj->fixedSizedArray[idx] = proto.fixedsizedarray(idx);
+  }
+}
+
+void c2pb(const TestFixedArray& cobj, tangent::test::TestFixedArray* proto) {
+  proto->mutable_fixedsizedarray()->Clear();
+  proto->mutable_fixedsizedarray()->Reserve(ARRAY_SIZE(cobj.fixedSizedArray));
+  for (int idx = 0; idx < static_cast<int>(ARRAY_SIZE(cobj.fixedSizedArray));
+       idx++) {
+    proto->add_fixedsizedarray(cobj.fixedSizedArray[idx]);
+  }
+}
+
+void pb2c(const tangent::test::TestAlignas& proto, TestAlignas* cobj) {
+  int arrayCount;
+
+  arrayCount = std::min<int>(proto.array_size(), 4);
+  for (int idx = 0; idx < static_cast<int>(arrayCount); idx++) {
+    cobj->array[idx] = proto.array(idx);
+  }
+}
+
+void c2pb(const TestAlignas& cobj, tangent::test::TestAlignas* proto) {
+  proto->mutable_array()->Clear();
+  proto->mutable_array()->Reserve(ARRAY_SIZE(cobj.array));
+  for (int idx = 0; idx < static_cast<int>(ARRAY_SIZE(cobj.array)); idx++) {
+    proto->add_array(cobj.array[idx]);
+  }
+}
+
+void pb2c(const tangent::test::TestPrimitives& proto, TestPrimitives* cobj) {
+  cobj->fieldA = proto.fielda();
+  cobj->fieldB = proto.fieldb();
+  cobj->fieldC = proto.fieldc();
+  cobj->fieldD = proto.fieldd();
+  cobj->fieldE = proto.fielde();
+  cobj->fieldF = proto.fieldf();
+  cobj->fieldG = proto.fieldg();
+  cobj->fieldH = proto.fieldh();
+  cobj->fieldI = proto.fieldi();
+  cobj->fieldJ = proto.fieldj();
+  cobj->fieldK = proto.fieldk();
+}
+
+void c2pb(const TestPrimitives& cobj, tangent::test::TestPrimitives* proto) {
+  proto->set_fielda(cobj.fieldA);
+  proto->set_fieldb(cobj.fieldB);
+  proto->set_fieldc(cobj.fieldC);
+  proto->set_fieldd(cobj.fieldD);
+  proto->set_fielde(cobj.fieldE);
+  proto->set_fieldf(cobj.fieldF);
+  proto->set_fieldg(cobj.fieldG);
+  proto->set_fieldh(cobj.fieldH);
+  proto->set_fieldi(cobj.fieldI);
+  proto->set_fieldj(cobj.fieldJ);
+  proto->set_fieldk(cobj.fieldK);
 }

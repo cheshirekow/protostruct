@@ -309,8 +309,16 @@ cc_library(
 )
 
 cc_library(
+  name = "libblkid",
+  hdrs = glob(["usr/include/blkid/*.h"]),
+  srcs = glob(["usr/lib/x86_64-linux-gnu/libblkid.*"]),
+  visibility = ["//visibility:public"]
+)
+
+cc_library(
   name = "libmount",
   srcs = glob(["usr/lib/x86_64-linux-gnu/libmount.*"]),
+  deps = [":libblkid"],
   visibility = ["//visibility:public"],
 )
 
@@ -842,8 +850,8 @@ py_runtime_pair(
 cc_library(
   name = "libzip",
   srcs = [
-    "usr/lib/x86_64-linux-gnu/libzip.so.4",
     "usr/lib/x86_64-linux-gnu/libzip.so",
+    "usr/lib/x86_64-linux-gnu/libzip.so.4",
     "usr/lib/x86_64-linux-gnu/libzip.so.4.0",
   ],
   hdrs = [

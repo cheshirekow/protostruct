@@ -56,6 +56,43 @@ struct MyMessageC {
 
 tjson::OStream& operator<<(tjson::OStream& out, const MyMessageC& value);
 
+struct TestFixedArray {
+  std::vector<double> fixedSizedArray;
+
+  void parse_json(const std::string& json_str);
+  std::string to_json();
+};
+
+tjson::OStream& operator<<(tjson::OStream& out, const TestFixedArray& value);
+
+struct TestAlignas {
+  std::vector<float> array;
+
+  void parse_json(const std::string& json_str);
+  std::string to_json();
+};
+
+tjson::OStream& operator<<(tjson::OStream& out, const TestAlignas& value);
+
+struct TestPrimitives {
+  int8_t fieldA;
+  int16_t fieldB;
+  int32_t fieldC;
+  int64_t fieldD;
+  uint8_t fieldE;
+  uint16_t fieldF;
+  uint32_t fieldG;
+  uint64_t fieldH;
+  float fieldI;
+  double fieldJ;
+  bool fieldK;
+
+  void parse_json(const std::string& json_str);
+  std::string to_json();
+};
+
+tjson::OStream& operator<<(tjson::OStream& out, const TestPrimitives& value);
+
 }  // namespace test
 }  // namespace tangent
 
@@ -66,5 +103,8 @@ int parse(tjson_ParseContext ctx, tangent::test::MyEnumA* value);
 int parse(tjson_ParseContext ctx, tangent::test::MyMessageA* value);
 int parse(tjson_ParseContext ctx, tangent::test::MyMessageB* value);
 int parse(tjson_ParseContext ctx, tangent::test::MyMessageC* value);
+int parse(tjson_ParseContext ctx, tangent::test::TestFixedArray* value);
+int parse(tjson_ParseContext ctx, tangent::test::TestAlignas* value);
+int parse(tjson_ParseContext ctx, tangent::test::TestPrimitives* value);
 
 }  // namespace tjson

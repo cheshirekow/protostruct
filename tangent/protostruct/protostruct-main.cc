@@ -55,6 +55,13 @@ class MyErrorCollector
   int status_;
 };
 
+std::string drop_cxstring(CXString str) {
+  const char* cstr = clang_getCString(str);
+  std::string cppstr{cstr};
+  clang_disposeString(str);
+  return cppstr;
+}
+
 std::ostream& operator<<(std::ostream& stream, const CXString& str) {
   stream << clang_getCString(str);
   clang_disposeString(str);
@@ -264,6 +271,19 @@ void visit_tree(CXCursor cursor, Args&&... args) {
   visitor.finish_visit();
 }
 
+class DebugVisitor : public ClangVisitor {
+ public:
+  DebugVisitor() {}
+  virtual ~DebugVisitor() {}
+
+  CXChildVisitResult visit(CXCursor c, CXCursor parent) override {
+    LOG(WARNING) << "DebugVisitor::HERE";
+    CXCursorKind kind = clang_getCursorKind(c);
+    LOG(WARNING) << clang_getCursorKindSpelling(kind);
+    return CXChildVisit_Recurse;
+  }
+};
+
 class EnumVisitor : public ClangVisitor {
  public:
   explicit EnumVisitor(google::protobuf::EnumDescriptorProto* proto,
@@ -373,6 +393,10 @@ void get_compatible(
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_DOUBLE);
       return;
 
+    case CXType_SChar:
+      TANGENT_FALLTHROUGH
+    case CXType_Short:
+      TANGENT_FALLTHROUGH
     case CXType_Int:
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_INT32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_SINT32);
@@ -387,6 +411,10 @@ void get_compatible(
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_SFIXED64);
       return;
 
+    case CXType_UChar:
+      TANGENT_FALLTHROUGH
+    case CXType_UShort:
+      TANGENT_FALLTHROUGH
     case CXType_UInt:
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_UINT32);
       out->push_back(google::protobuf::FieldDescriptorProto_Type_TYPE_INT32);
@@ -440,18 +468,32 @@ int set_default_unless_already_compatible(
   return 0;
 }
 
+std::map<std::string, std::string> STDINT_CONVERSIONS = {
+    {"signed char", "int8_t"},
+    {"short", "int16_t"},
+    {"unsigned char", "uint8_t"},
+    {"unsigned short", "uint16_t"},
+    {"_Bool", "bool"}};
+
 int set_field_type(google::protobuf::FieldDescriptorProto* proto,
                    CXType field_type) {
   auto* my_options =
       proto->mutable_options()->MutableExtension(protostruct::fieldopts);
-  if (!my_options->has_fieldtype()) {
-    CXString cxstr = clang_getTypeSpelling(field_type);
-    const char* cstr = clang_getCString(cxstr);
-    my_options->set_fieldtype(cstr);
-    clang_disposeString(cxstr);
-  }
 
   switch (field_type.kind) {
+    case CXType_SChar:
+    case CXType_Short:
+    case CXType_UChar:
+    case CXType_UShort: {
+      std::string type_spelling =
+          drop_cxstring(clang_getTypeSpelling(field_type));
+      auto iter = STDINT_CONVERSIONS.find(type_spelling);
+      if (iter != STDINT_CONVERSIONS.end()) {
+        type_spelling = iter->second;
+      }
+      my_options->set_fieldtype(type_spelling);
+    }
+      TANGENT_FALLTHROUGH
     case CXType_Int:
     case CXType_LongLong:
     case CXType_Long:
@@ -510,6 +552,13 @@ int set_field_type(google::protobuf::FieldDescriptorProto* proto,
       return 1;
     }
     case CXType_Bool: {
+      std::string type_spelling =
+          drop_cxstring(clang_getTypeSpelling(field_type));
+      auto iter = STDINT_CONVERSIONS.find(type_spelling);
+      if (iter != STDINT_CONVERSIONS.end()) {
+        type_spelling = iter->second;
+      }
+      my_options->set_fieldtype(type_spelling);
       proto->set_type(google::protobuf::FieldDescriptorProto_Type_TYPE_BOOL);
       return 0;
     }
@@ -517,8 +566,8 @@ int set_field_type(google::protobuf::FieldDescriptorProto* proto,
       break;
     }
   }
-  LOG(WARNING) << "Unhandled c type case: "
-               << clang_getTypeKindSpelling(field_type.kind) << "\n";
+  LOG(WARNING) << "Unhandled c type case: " << static_cast<int>(field_type.kind)
+               << ": " << clang_getTypeKindSpelling(field_type.kind) << "\n";
   return 1;
 }
 
@@ -725,13 +774,7 @@ class MessageVisitor : public ClangVisitor {
       return CXChildVisit_Continue;
     }
 
-    std::string fieldname;
-    /* temp scope */ {
-      CXString namestr = clang_getCursorSpelling(c);
-      fieldname = clang_getCString(namestr);
-      clang_disposeString(namestr);
-    }
-
+    std::string fieldname = drop_cxstring(clang_getCursorSpelling(c));
     CXType fieldtype = clang_getCursorType(c);
 
     bool needs_number = false;
@@ -1218,25 +1261,35 @@ int compile_main(const ProgramOptions& popts) {
     clang_argv.push_back("-std=c99");
     clang_argv.push_back("-language=c");
 
+#if CINDEX_VERSION == CINDEX_VERSION_ENCODE(0, 50)
+    // NOTE(josh): clang8 can't seem to find standard headers
+    clang_argv.push_back("-isystem");
+    clang_argv.push_back("/usr/lib/llvm-8/lib/clang/8.0.0/include");
+    clang_argv.push_back("-isystem");
+    clang_argv.push_back("/usr/lib/llvm-8/lib/clang/8.0.1/include");
+#endif
+
     CXErrorCode code = clang_parseTranslationUnit2(
         index, copts.source_filepath.c_str(), &clang_argv[0], clang_argv.size(),
         nullptr, 0, CXTranslationUnit_DetailedPreprocessingRecord, &tunit);
 
     if (code != CXError_Success) {
-      std::cerr << "Failed to build translation unit for "
-                << copts.source_filepath << " code: " << code << " argv:";
+      LOG(ERROR) << "Failed to build translation unit for "
+                 << copts.source_filepath << " code: " << code
+                 << " argv:" << stringutil::join(clang_argv, " ") << "\n";
+    }
 
-      for (const char* arg : clang_argv) {
-        std::cerr << " " << arg;
-      }
-      std::cerr << "\n";
+    if (clang_getNumDiagnostics(tunit)) {
+      LOG(WARNING) << "CINDEX_VERSION" << CINDEX_VERSION_MAJOR << "."
+                   << CINDEX_VERSION_MINOR;
+    }
+    for (size_t idx = 0; idx < clang_getNumDiagnostics(tunit); idx++) {
+      CXDiagnostic diag = clang_getDiagnostic(tunit, idx);
+      LOG(WARNING) << clang_getDiagnosticSpelling(diag);
+      clang_disposeDiagnostic(diag);
+    }
 
-      for (size_t idx = 0; idx < clang_getNumDiagnostics(tunit); idx++) {
-        CXDiagnostic diag = clang_getDiagnostic(tunit, idx);
-        std::cerr << clang_getDiagnosticSpelling(diag);
-        clang_disposeDiagnostic(diag);
-      }
-
+    if (code != CXError_Success) {
       exit(1);
     }
 

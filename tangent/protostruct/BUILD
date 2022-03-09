@@ -127,19 +127,25 @@ genrule(
 )
 
 protostruct_compile(
-  proto_path = ["tangent/protostruct"],
   name = "protoc-test_messages",
+  enforce = False,
   header = "test/test_messages.h",
-  proto_sync = "test/test_in.proto",
-  proto_out = "test/test_messages.proto",
   pb3_out = "test/test_messages.pb3",
-  enforce = False
+  proto_out = "test/test_messages.proto",
+  proto_path = ["tangent/protostruct"],
+  proto_sync = "test/test_in.proto",
 )
 
 protostruct_gen(
   name = "protog-test_messages",
   proto = "test/test_messages.pb3",
-  templates = ["cpp-simple", "cereal", "pbwire", "pb2c", "recon"],
+  templates = [
+    "cpp-simple",
+    "cereal",
+    "pbwire",
+    "pb2c",
+    "recon",
+  ],
 )
 
 proto_library(
@@ -190,11 +196,12 @@ cc_test(
 py_binary(
   name = "make-release",
   srcs = ["make_release.py"],
-  main = "make_release.py"
+  main = "make_release.py",
 )
 
 genrule(
   name = "release",
+  srcs = ["tools.bzl"],
   outs = ["protostruct-0.2.0dev1.tar.gz"],
   cmd = """
   $(location :make-release) \
@@ -203,7 +210,9 @@ genrule(
     --tools-bzl-path $(location tools.bzl) \
     --outfile $@
   """,
-  srcs = ["tools.bzl"],
-  tools = [":make-release", ":protostruct", ":protostruct-header"]
-  )
-
+  tools = [
+    ":make-release",
+    ":protostruct",
+    ":protostruct-header",
+  ],
+)

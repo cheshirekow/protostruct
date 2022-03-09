@@ -349,6 +349,7 @@ int _pbemit1_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj) {
 
   char* buffer_begin = ctx->buffer.ptr;
   /* fieldA */
+
   for (int idx = 0; idx < obj->fieldACount; idx++) {
     write_result = pbwire_write_tag(ctx, 26);
     if (write_result < 0) {
@@ -371,6 +372,7 @@ int _pbemit1_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj) {
     ctx->buffer.ptr += write_result;
   }
   /* fieldB */
+
   for (int idx = 0; idx < obj->fieldBCount; idx++) {
     write_result = pbwire_write_tag(ctx, 16);
     if (write_result < 0) {
@@ -385,6 +387,7 @@ int _pbemit1_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj) {
     ctx->buffer.ptr += write_result;
   }
   /* fieldC */
+
   for (int idx = 0; idx < obj->fieldCCount; idx++) {
     write_result = pbwire_write_tag(ctx, 48);
     if (write_result < 0) {
@@ -437,6 +440,506 @@ static int _parse_fielditem_MyMessageC(pbwire_ParseContext* ctx,
 int pbparse_MyMessageC(pbwire_ParseContext* ctx, MyMessageC* obj) {
   return pbwire_parse_message(
       ctx, (pbwire_FieldItemCallback)_parse_fielditem_MyMessageC, obj);
+}
+
+int _pbemit0_TestFixedArray(pbwire_EmitContext* ctx,
+                            const TestFixedArray* obj) {
+  int write_result = 0;
+
+  uint32_t encoded_size = 0;
+  /* fixedSizedArray */
+  for (int idx = 0; idx < ARRAY_SIZE(obj->fixedSizedArray); idx++) {
+    write_result = pbwire_write_tag(ctx, 9);
+    if (write_result < 0) {
+      return write_result;
+    }
+    encoded_size += write_result;
+
+    write_result = pbemit_double(ctx, obj->fixedSizedArray[idx]);
+    if (write_result < 0) {
+      return write_result;
+    }
+    encoded_size += write_result;
+  }
+  return encoded_size;
+}
+
+int _pbemit1_TestFixedArray(pbwire_EmitContext* ctx,
+                            const TestFixedArray* obj) {
+  int write_result = 0;
+
+  char* buffer_begin = ctx->buffer.ptr;
+  /* fixedSizedArray */
+
+  for (int idx = 0; idx < ARRAY_SIZE(obj->fixedSizedArray); idx++) {
+    write_result = pbwire_write_tag(ctx, 9);
+    if (write_result < 0) {
+      return write_result;
+    }
+    ctx->buffer.ptr += write_result;
+
+    write_result = pbemit_double(ctx, obj->fixedSizedArray[idx]);
+    if (write_result < 0) {
+      return write_result;
+    }
+    ctx->buffer.ptr += write_result;
+  }
+
+  return (ctx->buffer.ptr - buffer_begin);
+}
+
+int pbemit_TestFixedArray(pbwire_EmitContext* ctx, const TestFixedArray* obj) {
+  int retcode = 0;
+
+  retcode = _pbemit0_TestFixedArray(ctx, obj);
+  if (retcode < 0) {
+    return retcode;
+  }
+  retcode = _pbemit1_TestFixedArray(ctx, obj);
+  return retcode;
+}
+
+static int _parse_fielditem_TestFixedArray(pbwire_ParseContext* ctx,
+                                           TestFixedArray* obj, uint32_t tag) {
+  uint32_t fixedSizedArrayCount = 0;
+  switch (tag) {
+    /* fixedSizedArray */
+    case 9: {
+      return pbparse_double(ctx, &obj->fixedSizedArray[fixedSizedArrayCount++]);
+    }
+    default:
+      /* Unknown field */
+      return pbparse_sink_unknown(tag, ctx);
+  };
+}
+
+int pbparse_TestFixedArray(pbwire_ParseContext* ctx, TestFixedArray* obj) {
+  return pbwire_parse_message(
+      ctx, (pbwire_FieldItemCallback)_parse_fielditem_TestFixedArray, obj);
+}
+
+int _pbemit0_TestAlignas(pbwire_EmitContext* ctx, const TestAlignas* obj) {
+  int write_result = 0;
+
+  uint32_t encoded_size = 0;
+  /* array */
+  for (int idx = 0; idx < ARRAY_SIZE(obj->array); idx++) {
+    write_result = pbwire_write_tag(ctx, 13);
+    if (write_result < 0) {
+      return write_result;
+    }
+    encoded_size += write_result;
+
+    write_result = pbemit_float(ctx, obj->array[idx]);
+    if (write_result < 0) {
+      return write_result;
+    }
+    encoded_size += write_result;
+  }
+  return encoded_size;
+}
+
+int _pbemit1_TestAlignas(pbwire_EmitContext* ctx, const TestAlignas* obj) {
+  int write_result = 0;
+
+  char* buffer_begin = ctx->buffer.ptr;
+  /* array */
+
+  for (int idx = 0; idx < ARRAY_SIZE(obj->array); idx++) {
+    write_result = pbwire_write_tag(ctx, 13);
+    if (write_result < 0) {
+      return write_result;
+    }
+    ctx->buffer.ptr += write_result;
+
+    write_result = pbemit_float(ctx, obj->array[idx]);
+    if (write_result < 0) {
+      return write_result;
+    }
+    ctx->buffer.ptr += write_result;
+  }
+
+  return (ctx->buffer.ptr - buffer_begin);
+}
+
+int pbemit_TestAlignas(pbwire_EmitContext* ctx, const TestAlignas* obj) {
+  int retcode = 0;
+
+  retcode = _pbemit0_TestAlignas(ctx, obj);
+  if (retcode < 0) {
+    return retcode;
+  }
+  retcode = _pbemit1_TestAlignas(ctx, obj);
+  return retcode;
+}
+
+static int _parse_fielditem_TestAlignas(pbwire_ParseContext* ctx,
+                                        TestAlignas* obj, uint32_t tag) {
+  uint32_t arrayCount = 0;
+  switch (tag) {
+    /* array */
+    case 13: {
+      return pbparse_float(ctx, &obj->array[arrayCount++]);
+    }
+    default:
+      /* Unknown field */
+      return pbparse_sink_unknown(tag, ctx);
+  };
+}
+
+int pbparse_TestAlignas(pbwire_ParseContext* ctx, TestAlignas* obj) {
+  return pbwire_parse_message(
+      ctx, (pbwire_FieldItemCallback)_parse_fielditem_TestAlignas, obj);
+}
+
+int _pbemit0_TestPrimitives(pbwire_EmitContext* ctx,
+                            const TestPrimitives* obj) {
+  int write_result = 0;
+
+  uint32_t encoded_size = 0;
+  /* fieldA */
+  write_result = pbwire_write_tag(ctx, 8);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_int32(ctx, obj->fieldA);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldB */
+  write_result = pbwire_write_tag(ctx, 16);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_int32(ctx, obj->fieldB);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldC */
+  write_result = pbwire_write_tag(ctx, 24);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_int32(ctx, obj->fieldC);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldD */
+  write_result = pbwire_write_tag(ctx, 32);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_int64(ctx, obj->fieldD);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldE */
+  write_result = pbwire_write_tag(ctx, 40);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_uint32(ctx, obj->fieldE);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldF */
+  write_result = pbwire_write_tag(ctx, 48);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_uint32(ctx, obj->fieldF);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldG */
+  write_result = pbwire_write_tag(ctx, 56);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_uint32(ctx, obj->fieldG);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldH */
+  write_result = pbwire_write_tag(ctx, 64);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_uint64(ctx, obj->fieldH);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldI */
+  write_result = pbwire_write_tag(ctx, 77);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_float(ctx, obj->fieldI);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldJ */
+  write_result = pbwire_write_tag(ctx, 81);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_double(ctx, obj->fieldJ);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  /* fieldK */
+  write_result = pbwire_write_tag(ctx, 88);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+
+  write_result = pbemit_bool(ctx, obj->fieldK);
+  if (write_result < 0) {
+    return write_result;
+  }
+  encoded_size += write_result;
+  return encoded_size;
+}
+
+int _pbemit1_TestPrimitives(pbwire_EmitContext* ctx,
+                            const TestPrimitives* obj) {
+  int write_result = 0;
+
+  char* buffer_begin = ctx->buffer.ptr;
+  /* fieldA */
+  write_result = pbwire_write_tag(ctx, 8);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_int32(ctx, obj->fieldA);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldB */
+  write_result = pbwire_write_tag(ctx, 16);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_int32(ctx, obj->fieldB);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldC */
+  write_result = pbwire_write_tag(ctx, 24);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_int32(ctx, obj->fieldC);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldD */
+  write_result = pbwire_write_tag(ctx, 32);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_int64(ctx, obj->fieldD);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldE */
+  write_result = pbwire_write_tag(ctx, 40);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_uint32(ctx, obj->fieldE);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldF */
+  write_result = pbwire_write_tag(ctx, 48);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_uint32(ctx, obj->fieldF);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldG */
+  write_result = pbwire_write_tag(ctx, 56);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_uint32(ctx, obj->fieldG);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldH */
+  write_result = pbwire_write_tag(ctx, 64);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_uint64(ctx, obj->fieldH);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldI */
+  write_result = pbwire_write_tag(ctx, 77);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_float(ctx, obj->fieldI);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldJ */
+  write_result = pbwire_write_tag(ctx, 81);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_double(ctx, obj->fieldJ);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+  /* fieldK */
+  write_result = pbwire_write_tag(ctx, 88);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  write_result = pbemit_bool(ctx, obj->fieldK);
+  if (write_result < 0) {
+    return write_result;
+  }
+  ctx->buffer.ptr += write_result;
+
+  return (ctx->buffer.ptr - buffer_begin);
+}
+
+int pbemit_TestPrimitives(pbwire_EmitContext* ctx, const TestPrimitives* obj) {
+  int retcode = 0;
+
+  retcode = _pbemit0_TestPrimitives(ctx, obj);
+  if (retcode < 0) {
+    return retcode;
+  }
+  retcode = _pbemit1_TestPrimitives(ctx, obj);
+  return retcode;
+}
+
+static int _parse_fielditem_TestPrimitives(pbwire_ParseContext* ctx,
+                                           TestPrimitives* obj, uint32_t tag) {
+  switch (tag) {
+    /* fieldA */
+    case 8: {
+      return pbparse_int8(ctx, &obj->fieldA);
+    }
+    /* fieldB */
+    case 16: {
+      return pbparse_int16(ctx, &obj->fieldB);
+    }
+    /* fieldC */
+    case 24: {
+      return pbparse_int32(ctx, &obj->fieldC);
+    }
+    /* fieldD */
+    case 32: {
+      return pbparse_int64(ctx, &obj->fieldD);
+    }
+    /* fieldE */
+    case 40: {
+      return pbparse_uint8(ctx, &obj->fieldE);
+    }
+    /* fieldF */
+    case 48: {
+      return pbparse_uint16(ctx, &obj->fieldF);
+    }
+    /* fieldG */
+    case 56: {
+      return pbparse_uint32(ctx, &obj->fieldG);
+    }
+    /* fieldH */
+    case 64: {
+      return pbparse_uint64(ctx, &obj->fieldH);
+    }
+    /* fieldI */
+    case 77: {
+      return pbparse_float(ctx, &obj->fieldI);
+    }
+    /* fieldJ */
+    case 81: {
+      return pbparse_double(ctx, &obj->fieldJ);
+    }
+    /* fieldK */
+    case 88: {
+      return pbparse_bool(ctx, &obj->fieldK);
+    }
+    default:
+      /* Unknown field */
+      return pbparse_sink_unknown(tag, ctx);
+  };
+}
+
+int pbparse_TestPrimitives(pbwire_ParseContext* ctx, TestPrimitives* obj) {
+  return pbwire_parse_message(
+      ctx, (pbwire_FieldItemCallback)_parse_fielditem_TestPrimitives, obj);
 }
 
 #ifdef __cplusplus

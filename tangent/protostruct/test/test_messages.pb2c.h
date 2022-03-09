@@ -14,6 +14,12 @@ void pb2c(const tangent::test::MyMessageA& proto, MyMessageA* obj);
 void pb2c(const tangent::test::MyMessageB& proto, MyMessageB* obj);
 // Copy data from a C++ binding object to a MyMessageC native structure
 void pb2c(const tangent::test::MyMessageC& proto, MyMessageC* obj);
+// Copy data from a C++ binding object to a TestFixedArray native structure
+void pb2c(const tangent::test::TestFixedArray& proto, TestFixedArray* obj);
+// Copy data from a C++ binding object to a TestAlignas native structure
+void pb2c(const tangent::test::TestAlignas& proto, TestAlignas* obj);
+// Copy data from a C++ binding object to a TestPrimitives native structure
+void pb2c(const tangent::test::TestPrimitives& proto, TestPrimitives* obj);
 
 // Convert a native MyEnumA value to a protobuf C++ binding value
 tangent::test::MyEnumA c2pb(MyEnumA value);
@@ -23,3 +29,9 @@ int c2pb(const MyMessageA& obj, tangent::test::MyMessageA* proto);
 int c2pb(const MyMessageB& obj, tangent::test::MyMessageB* proto);
 // Copy a MyMessageC native structure to a protobuf C++ binding object
 int c2pb(const MyMessageC& obj, tangent::test::MyMessageC* proto);
+// Copy a TestFixedArray native structure to a protobuf C++ binding object
+int c2pb(const TestFixedArray& obj, tangent::test::TestFixedArray* proto);
+// Copy a TestAlignas native structure to a protobuf C++ binding object
+int c2pb(const TestAlignas& obj, tangent::test::TestAlignas* proto);
+// Copy a TestPrimitives native structure to a protobuf C++ binding object
+int c2pb(const TestPrimitives& obj, tangent::test::TestPrimitives* proto);

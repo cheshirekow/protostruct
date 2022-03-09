@@ -1,16 +1,16 @@
-load("@rules_python//python:defs.bzl", "py_test", "py_binary")
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
 def protostruct_compile(
-  name = None,
-  proto_path = None,
-  header = None,
-  deps = None,
-  proto_out = None,
-  pb3_out = None,
-  proto_sync = None,
-  visibility = None,
-  cflags = None,
-  enforce = False):
+    name = None,
+    proto_path = None,
+    header = None,
+    deps = None,
+    proto_out = None,
+    pb3_out = None,
+    proto_sync = None,
+    visibility = None,
+    cflags = None,
+    enforce = False):
   """Use protostruct to reverse out the message spec from an existing header
 
   Args:
@@ -50,8 +50,8 @@ def protostruct_compile(
   ]
 
   if proto_sync:
-   cmdparts += ["  --proto-in", proto_sync]
-   srcs += [proto_sync]
+    cmdparts += ["  --proto-in", proto_sync]
+    srcs += [proto_sync]
 
   if proto_out:
     cmdparts += ["--proto-out", "$(RULEDIR)/" + proto_out]
@@ -74,23 +74,30 @@ def protostruct_compile(
   if proto_out and enforce:
     py_test(
       name = name + ".enforce",
-      srcs=["//tangent/protostruct:diff_test.py"],
-      main="diff_test.py",
-      args=[
-        "--truth-file", "$(location %s) " % proto_out,
-        "--query-file", "$(location %s)" % proto_sync,
-    ], data = outs + [proto_sync])
+      srcs = ["//tangent/protostruct:diff_test.py"],
+      main = "diff_test.py",
+      args = [
+        "--truth-file",
+        "$(location %s) " % proto_out,
+        "--query-file",
+        "$(location %s)" % proto_sync,
+      ],
+      data = outs + [proto_sync],
+    )
 
     py_binary(
       name = name + ".fix",
-      srcs=["//tangent/protostruct:diff_test.py"],
-      main="diff_test.py",
-      args=[
-        "--truth-file", "$(location %s) " % proto_out,
-        "--query-file", "$(location %s)" % proto_sync,
-        "--fix"
-    ], data = outs + [proto_sync])
-
+      srcs = ["//tangent/protostruct:diff_test.py"],
+      main = "diff_test.py",
+      args = [
+        "--truth-file",
+        "$(location %s) " % proto_out,
+        "--query-file",
+        "$(location %s)" % proto_sync,
+        "--fix",
+      ],
+      data = outs + [proto_sync],
+    )
 
 def protostruct_gen(
     name = None,
@@ -111,10 +118,10 @@ def protostruct_gen(
   else:
     fail("Invalid proto name {}".format(proto))
 
-
   cmdparts = [
     "$(location //tangent/protostruct:protostruct)",
-    "--proto-path", ".",
+    "--proto-path",
+    ".",
     "generate",
     "--cpp-root",
     "$(BINDIR)",

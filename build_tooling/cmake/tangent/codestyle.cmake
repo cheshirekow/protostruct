@@ -50,7 +50,7 @@ set(_pythonpath "${CMAKE_SOURCE_DIR}:${CMAKE_BINARY_DIR}/pynix")
 
 find_program(
   _clang_format
-  NAMES clang-format-13 clang-format-8
+  NAMES clang-format-13 clang-format-11 clang-format-8
   DOC "Path to clang-format program"
   REQUIRED)
 

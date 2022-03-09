@@ -96,6 +96,64 @@ tjson::OStream& operator<<(tjson::OStream& out, const MyMessageC& value) {
   return out;
 }
 
+std::string TestFixedArray::to_json() {
+  tjson::OSStream strm{};
+  strm << *this;
+  return strm.str();
+}
+
+void TestFixedArray::parse_json(const std::string& json_str) {
+  return tjson::parse_json(json_str, this);
+}
+
+tjson::OStream& operator<<(tjson::OStream& out, const TestFixedArray& value) {
+  tjson::Guard guard{&out, tjson::OBJECT};
+  out << "fixedSizedArray" << value.fixedSizedArray;
+  return out;
+}
+
+std::string TestAlignas::to_json() {
+  tjson::OSStream strm{};
+  strm << *this;
+  return strm.str();
+}
+
+void TestAlignas::parse_json(const std::string& json_str) {
+  return tjson::parse_json(json_str, this);
+}
+
+tjson::OStream& operator<<(tjson::OStream& out, const TestAlignas& value) {
+  tjson::Guard guard{&out, tjson::OBJECT};
+  out << "array" << value.array;
+  return out;
+}
+
+std::string TestPrimitives::to_json() {
+  tjson::OSStream strm{};
+  strm << *this;
+  return strm.str();
+}
+
+void TestPrimitives::parse_json(const std::string& json_str) {
+  return tjson::parse_json(json_str, this);
+}
+
+tjson::OStream& operator<<(tjson::OStream& out, const TestPrimitives& value) {
+  tjson::Guard guard{&out, tjson::OBJECT};
+  out << "fieldA" << value.fieldA;
+  out << "fieldB" << value.fieldB;
+  out << "fieldC" << value.fieldC;
+  out << "fieldD" << value.fieldD;
+  out << "fieldE" << value.fieldE;
+  out << "fieldF" << value.fieldF;
+  out << "fieldG" << value.fieldG;
+  out << "fieldH" << value.fieldH;
+  out << "fieldI" << value.fieldI;
+  out << "fieldJ" << value.fieldJ;
+  out << "fieldK" << value.fieldK;
+  return out;
+}
+
 }  // namespace test
 }  // namespace tangent
 
@@ -160,6 +218,68 @@ static int MyMessageC_fielditem_callback(void* pobj, tjson_ParseContext ctx,
 
 int parse(tjson_ParseContext ctx, tangent::test::MyMessageC* value) {
   return tjson_parse_object(ctx, MyMessageC_fielditem_callback, value);
+}
+
+static int TestFixedArray_fielditem_callback(void* pobj, tjson_ParseContext ctx,
+                                             tjson_StringPiece fieldname) {
+  auto* obj = reinterpret_cast<tangent::test::TestFixedArray*>(pobj);
+  switch (tjson_StringPiece_suci_digest(fieldname)) {
+    case tangent::suci_hash("fixedSizedArray"):
+      return tjson::parse(ctx, &obj->fixedSizedArray);
+  }
+  return 0;
+}
+
+int parse(tjson_ParseContext ctx, tangent::test::TestFixedArray* value) {
+  return tjson_parse_object(ctx, TestFixedArray_fielditem_callback, value);
+}
+
+static int TestAlignas_fielditem_callback(void* pobj, tjson_ParseContext ctx,
+                                          tjson_StringPiece fieldname) {
+  auto* obj = reinterpret_cast<tangent::test::TestAlignas*>(pobj);
+  switch (tjson_StringPiece_suci_digest(fieldname)) {
+    case tangent::suci_hash("array"):
+      return tjson::parse(ctx, &obj->array);
+  }
+  return 0;
+}
+
+int parse(tjson_ParseContext ctx, tangent::test::TestAlignas* value) {
+  return tjson_parse_object(ctx, TestAlignas_fielditem_callback, value);
+}
+
+static int TestPrimitives_fielditem_callback(void* pobj, tjson_ParseContext ctx,
+                                             tjson_StringPiece fieldname) {
+  auto* obj = reinterpret_cast<tangent::test::TestPrimitives*>(pobj);
+  switch (tjson_StringPiece_suci_digest(fieldname)) {
+    case tangent::suci_hash("fieldA"):
+      return tjson::parse(ctx, &obj->fieldA);
+    case tangent::suci_hash("fieldB"):
+      return tjson::parse(ctx, &obj->fieldB);
+    case tangent::suci_hash("fieldC"):
+      return tjson::parse(ctx, &obj->fieldC);
+    case tangent::suci_hash("fieldD"):
+      return tjson::parse(ctx, &obj->fieldD);
+    case tangent::suci_hash("fieldE"):
+      return tjson::parse(ctx, &obj->fieldE);
+    case tangent::suci_hash("fieldF"):
+      return tjson::parse(ctx, &obj->fieldF);
+    case tangent::suci_hash("fieldG"):
+      return tjson::parse(ctx, &obj->fieldG);
+    case tangent::suci_hash("fieldH"):
+      return tjson::parse(ctx, &obj->fieldH);
+    case tangent::suci_hash("fieldI"):
+      return tjson::parse(ctx, &obj->fieldI);
+    case tangent::suci_hash("fieldJ"):
+      return tjson::parse(ctx, &obj->fieldJ);
+    case tangent::suci_hash("fieldK"):
+      return tjson::parse(ctx, &obj->fieldK);
+  }
+  return 0;
+}
+
+int parse(tjson_ParseContext ctx, tangent::test::TestPrimitives* value) {
+  return tjson_parse_object(ctx, TestPrimitives_fielditem_callback, value);
 }
 
 }  // namespace tjson

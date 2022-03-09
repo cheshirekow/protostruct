@@ -32,7 +32,7 @@ try:
   with open(args.query_file, "r") as infile:
     query_lines = infile.read().split("\n")
 except FileNotFoundError:
-   pass
+  pass
 
 difflines = list(
   difflib.unified_diff(

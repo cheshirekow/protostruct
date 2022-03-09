@@ -7,6 +7,7 @@ import io
 import json
 import logging
 import os
+import re
 import zipfile
 
 import jinja2
@@ -331,7 +332,7 @@ def get_options(fielddescr):
   if psopts:
     opsdict = {}
     if psopts.HasField("fieldtype"):
-      psopts.ClearField("fieldtype")
+      opsdict["fieldtype"] = psopts.fieldtype
     if psopts.lenfield:
       # We only need to record this if it's not the default
       # TODO(josh): make a configuration option
@@ -436,9 +437,23 @@ class TemplateContext(object):
     if style == "proto":
       return get_proto_typename(fielddescr.type)
     if style == "cpp":
+      psopts = get_protostruct_options(fielddescr)
+      if psopts and psopts.HasField("fieldtype"):
+        return psopts.fieldtype
       return get_simple_cpp_typename(fielddescr.type)
 
     raise ValueError("Unknown style %s" % style)
+
+  def get_pbparse(self, fielddescr):
+    """Return the name of the pbparse function for a given field descriptor.
+       The pbparse function will depend on both the proto wire format and
+       the C field type. """
+
+    popts = get_protostruct_options(fielddescr)
+    if popts and popts.HasField("fieldtype"):
+      return "pbparse_" + re.sub("(.*)(?:_t)", r"\1", popts.fieldtype)
+
+    return "pbparse_" + self.get_typename(fielddescr)
 
   def get_emit_fun(self, fielddescr, passno=None):
     """Return the name of the emit function for a single value of the given

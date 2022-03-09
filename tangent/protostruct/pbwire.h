@@ -74,7 +74,7 @@ inline uint32_t pbwire_zigzag32(int32_t value) {
 }
 
 inline int32_t pbwire_unzigzag32(uint32_t value) {
-  uint32_t unsigned_output =  (value >> 1) ^ -(value & 1);
+  uint32_t unsigned_output = (value >> 1) ^ -(value & 1);
   int32_t signed_output = 0;
   memcpy(&signed_output, &unsigned_output, sizeof(uint32_t));
   return unsigned_output;

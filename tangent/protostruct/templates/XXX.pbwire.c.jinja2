@@ -314,10 +314,10 @@ static int _parse_fielditem_{{descr.name}}(
   {% endif %}
   {% if is_packed(fielddescr) %}
       if({{countvar}} < ARRAY_SIZE(obj->{{fielddescr.name}})){
-        return pbparse_{{get_typename(fielddescr)}}(
+        return {{ctx.get_pbparse(fielddescr)}}(
           ctx, &obj->{{fielddescr.name}}[{{countvar}}++]);
       } else {
-        return pbparse_{{get_typename(fielddescr)}}(ctx, NULL);
+        return {{ctx.get_pbparse(fielddescr)}}(ctx, NULL);
       }
     }
 
@@ -325,17 +325,17 @@ static int _parse_fielditem_{{descr.name}}(
     case {{get_packed_tag(fielddescr)}}: {
       size_t write_idx = {{countvar}};
       int retcode = pbwire_parse_packed_repeated(
-        ctx, (pbwire_RepeatedItemCallback)&pbparse_{{get_typename(fielddescr)}},
+        ctx, (pbwire_RepeatedItemCallback)&{{ctx.get_pbparse(fielddescr)}},
         obj->{{fielddescr.name}}, sizeof(obj->{{fielddescr.name}}[0]),
         ARRAY_SIZE(obj->{{fielddescr.name}}), &write_idx);
       {{countvar}} = write_idx;
       return retcode;
   {% else %}
-      return pbparse_{{get_typename(fielddescr)}}(
+      return {{ctx.get_pbparse(fielddescr)}}(
         ctx, &obj->{{fielddescr.name}}[{{countvar}}++]);
   {% endif %}
 {% else %}
-      return pbparse_{{get_typename(fielddescr)}}(ctx, &obj->{{fielddescr.name}});
+      return {{ctx.get_pbparse(fielddescr)}}(ctx, &obj->{{fielddescr.name}});
 {% endif %}
     }
 {% endfor %}

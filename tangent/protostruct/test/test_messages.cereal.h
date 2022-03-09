@@ -42,8 +42,42 @@ template <class Archive>
 void serialize(Archive& archive, MyMessageC& cobj) {
   archive(cereal::make_nvp(
       "fieldA", protostruct::cereal_array(cobj.fieldA, cobj.fieldACount)));
+
   archive(cereal::make_nvp(
       "fieldB", protostruct::cereal_array(cobj.fieldB, cobj.fieldBCount)));
+
   archive(cereal::make_nvp(
       "fieldC", protostruct::cereal_array(cobj.fieldC, cobj.fieldCCount)));
+}
+
+template <class Archive>
+void serialize(Archive& archive, TestFixedArray& cobj) {
+  int fixedSizedArrayCount = protostruct::array_size(cobj.fixedSizedArray);
+
+  archive(cereal::make_nvp(
+      "fixedSizedArray",
+      protostruct::cereal_array(cobj.fixedSizedArray, fixedSizedArrayCount)));
+}
+
+template <class Archive>
+void serialize(Archive& archive, TestAlignas& cobj) {
+  int arrayCount = protostruct::array_size(cobj.array);
+
+  archive(cereal::make_nvp("array",
+                           protostruct::cereal_array(cobj.array, arrayCount)));
+}
+
+template <class Archive>
+void serialize(Archive& archive, TestPrimitives& cobj) {
+  archive(cereal::make_nvp("fieldA", cobj.fieldA));
+  archive(cereal::make_nvp("fieldB", cobj.fieldB));
+  archive(cereal::make_nvp("fieldC", cobj.fieldC));
+  archive(cereal::make_nvp("fieldD", cobj.fieldD));
+  archive(cereal::make_nvp("fieldE", cobj.fieldE));
+  archive(cereal::make_nvp("fieldF", cobj.fieldF));
+  archive(cereal::make_nvp("fieldG", cobj.fieldG));
+  archive(cereal::make_nvp("fieldH", cobj.fieldH));
+  archive(cereal::make_nvp("fieldI", cobj.fieldI));
+  archive(cereal::make_nvp("fieldJ", cobj.fieldJ));
+  archive(cereal::make_nvp("fieldK", cobj.fieldK));
 }

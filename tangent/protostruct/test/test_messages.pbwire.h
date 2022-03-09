@@ -17,6 +17,12 @@ int pbemit_MyMessageA(pbwire_EmitContext* ctx, const MyMessageA* obj);
 int pbemit_MyMessageB(pbwire_EmitContext* ctx, const MyMessageB* obj);
 /* Serialize a MyMessageC object into a buffer */
 int pbemit_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj);
+/* Serialize a TestFixedArray object into a buffer */
+int pbemit_TestFixedArray(pbwire_EmitContext* ctx, const TestFixedArray* obj);
+/* Serialize a TestAlignas object into a buffer */
+int pbemit_TestAlignas(pbwire_EmitContext* ctx, const TestAlignas* obj);
+/* Serialize a TestPrimitives object into a buffer */
+int pbemit_TestPrimitives(pbwire_EmitContext* ctx, const TestPrimitives* obj);
 
 /* Deserialize a MyEnumA value from a buffer */
 int pbparse_MyEnumA(pbwire_ParseContext* ctx, MyEnumA* value);
@@ -27,6 +33,12 @@ int pbparse_MyMessageA(pbwire_ParseContext* ctx, MyMessageA* obj);
 int pbparse_MyMessageB(pbwire_ParseContext* ctx, MyMessageB* obj);
 /* Deserialize a MyMessageC object from a buffer */
 int pbparse_MyMessageC(pbwire_ParseContext* ctx, MyMessageC* obj);
+/* Deserialize a TestFixedArray object from a buffer */
+int pbparse_TestFixedArray(pbwire_ParseContext* ctx, TestFixedArray* obj);
+/* Deserialize a TestAlignas object from a buffer */
+int pbparse_TestAlignas(pbwire_ParseContext* ctx, TestAlignas* obj);
+/* Deserialize a TestPrimitives object from a buffer */
+int pbparse_TestPrimitives(pbwire_ParseContext* ctx, TestPrimitives* obj);
 
 /* Backend emission functions. These are included in the header as an
    implementation detail. Do not call these from user code. */
@@ -36,6 +48,12 @@ int _pbemit0_MyMessageB(pbwire_EmitContext* ctx, const MyMessageB* obj);
 int _pbemit1_MyMessageB(pbwire_EmitContext* ctx, const MyMessageB* obj);
 int _pbemit0_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj);
 int _pbemit1_MyMessageC(pbwire_EmitContext* ctx, const MyMessageC* obj);
+int _pbemit0_TestFixedArray(pbwire_EmitContext* ctx, const TestFixedArray* obj);
+int _pbemit1_TestFixedArray(pbwire_EmitContext* ctx, const TestFixedArray* obj);
+int _pbemit0_TestAlignas(pbwire_EmitContext* ctx, const TestAlignas* obj);
+int _pbemit1_TestAlignas(pbwire_EmitContext* ctx, const TestAlignas* obj);
+int _pbemit0_TestPrimitives(pbwire_EmitContext* ctx, const TestPrimitives* obj);
+int _pbemit1_TestPrimitives(pbwire_EmitContext* ctx, const TestPrimitives* obj);
 
 #ifdef __cplusplus
 }  // extern "C"
@@ -54,6 +72,18 @@ inline int emit(pbwire_EmitContext* ctx, const MyMessageB* obj) {
 inline int emit(pbwire_EmitContext* ctx, const MyMessageC* obj) {
   return ::pbemit_MyMessageC(ctx, obj);
 }
+// Serialize a TestFixedArray object into a buffer
+inline int emit(pbwire_EmitContext* ctx, const TestFixedArray* obj) {
+  return ::pbemit_TestFixedArray(ctx, obj);
+}
+// Serialize a TestAlignas object into a buffer
+inline int emit(pbwire_EmitContext* ctx, const TestAlignas* obj) {
+  return ::pbemit_TestAlignas(ctx, obj);
+}
+// Serialize a TestPrimitives object into a buffer
+inline int emit(pbwire_EmitContext* ctx, const TestPrimitives* obj) {
+  return ::pbemit_TestPrimitives(ctx, obj);
+}
 
 // Deserialize a MyMessageA object from a buffer
 inline int parse(pbwire_ParseContext* ctx, MyMessageA* obj) {
@@ -66,6 +96,18 @@ inline int parse(pbwire_ParseContext* ctx, MyMessageB* obj) {
 // Deserialize a MyMessageC object from a buffer
 inline int parse(pbwire_ParseContext* ctx, MyMessageC* obj) {
   return ::pbparse_MyMessageC(ctx, obj);
+}
+// Deserialize a TestFixedArray object from a buffer
+inline int parse(pbwire_ParseContext* ctx, TestFixedArray* obj) {
+  return ::pbparse_TestFixedArray(ctx, obj);
+}
+// Deserialize a TestAlignas object from a buffer
+inline int parse(pbwire_ParseContext* ctx, TestAlignas* obj) {
+  return ::pbparse_TestAlignas(ctx, obj);
+}
+// Deserialize a TestPrimitives object from a buffer
+inline int parse(pbwire_ParseContext* ctx, TestPrimitives* obj) {
+  return ::pbparse_TestPrimitives(ctx, obj);
 }
 
 }  // namespace pbwire

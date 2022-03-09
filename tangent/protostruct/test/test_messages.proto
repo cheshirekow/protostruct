@@ -40,3 +40,28 @@ message MyMessageC {
 }
 
 
+message TestFixedArray {
+  repeated double fixedSizedArray = 1 [(protostruct.fieldopts).capacity=10];
+}
+
+
+message TestAlignas {
+  repeated float array = 1 [(protostruct.fieldopts).capacity=4];
+}
+
+
+message TestPrimitives {
+   int32 fieldA =  1 [(protostruct.fieldopts).fieldtype="int8_t"];
+   int32 fieldB =  2 [(protostruct.fieldopts).fieldtype="int16_t"];
+   int32 fieldC =  3;
+   int64 fieldD =  4;
+  uint32 fieldE =  5 [(protostruct.fieldopts).fieldtype="uint8_t"];
+  uint32 fieldF =  6 [(protostruct.fieldopts).fieldtype="uint16_t"];
+  uint32 fieldG =  7;
+  uint64 fieldH =  8;
+   float fieldI =  9;
+  double fieldJ = 10;
+    bool fieldK = 11 [(protostruct.fieldopts).fieldtype="bool"];
+}
+
+

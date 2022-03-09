@@ -45,7 +45,7 @@ function(_pkg_query outvar arg)
   string(REGEX REPLACE " +" ";" _cflags_raw "${_pkg_out}")
 
   set(PKG_${outvar}_CFLAGS_RAW
-      ${_cflags}
+      ${_cflags_raw}
       CACHE STRING "cflags directories for ${outvar}" FORCE)
 
   # Convert some C++ specific flags into a generator expression that will
@@ -53,6 +53,11 @@ function(_pkg_query outvar arg)
   # "-std=c++11" to "$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>".
   string(REGEX REPLACE "(-std=[^;]+)" "$<$<COMPILE_LANGUAGE:CXX>:\\1>" _cflags
                        "${_cflags_raw}")
+
+  # Clang doesn't understand -specs=
+  if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    string(REGEX REPLACE "(-specs=[^;]+)" "" _cflags "${_cflags}")
+  endif()
 
   set(PKG_${outvar}_CFLAGS
       ${_cflags}
@@ -103,6 +108,12 @@ function(_pkg_query outvar arg)
   # from libraries in the form of "-lfilename" so that they are just "filename".
   # Cmake will add the -l.
   string(REGEX REPLACE "-l" "" _libs "${_libs_raw}")
+
+  # Clang doesn't understand -specs=
+  if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    string(REGEX REPLACE "(-specs=[^;]+)" "" _libs "${_libs}")
+  endif()
+
 
   set(PKG_${outvar}_LIBS
       ${_libs}
@@ -258,14 +269,15 @@ function(target_pkg_depends target pkg0)
     endif()
     if(PKG_${pkgname}_LIBDIRS)
       get_target_property(lflags_ ${target} LINK_FLAGS)
-      if(lflags_)
-        list(APPEND lflags_ ${PKG_${pkgname}_lflags})
-        set_target_properties(${target} PROPERTIES LINK_FLAGS ${lflags_})
-      else()
-        set_target_properties(${target} PROPERTIES LINK_FLAGS
-                                                   ${PKG_${pkgname}_lflags})
+      if("${lflags_}" STREQUAL "lflags_-NOTFOUND")
+        set(lflags_)
       endif()
-
+      foreach(libdir_ ${PKG_${pkgname}_LIBDIRS})
+        list(APPEND lflags_ "-L" ${libdir_})
+      endforeach()
+      if("${lflags_}")
+        set_target_properties(${target} PROPERTIES LINK_FLAGS ${lflags_})
+      endif()
     endif()
     if(PKG_${pkgname}_LIBS)
       # Passthrough options like INTERFACE|PUBLIC|PRIVATE and

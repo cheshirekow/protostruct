@@ -110,9 +110,9 @@ cc_test(
   srcs = ["linked_test.cc"],
   deps = [
     ":util",
+    "//third_party:fmt",
     "//third_party/googletest:gtest",
     "//third_party/googletest:gtest_main",
-    "//third_party:fmt",
   ],
 )
 
@@ -121,9 +121,9 @@ cc_test(
   srcs = ["redblack_test.cc"],
   deps = [
     ":util",
+    "//third_party:fmt",
     "//third_party/googletest:gtest",
     "//third_party/googletest:gtest_main",
-    "//third_party:fmt",
   ],
 )
 
@@ -132,9 +132,9 @@ cc_test(
   srcs = ["type_string_test.cc"],
   deps = [
     ":util",
+    "//third_party:fmt",
     "//third_party/googletest:gtest",
     "//third_party/googletest:gtest_main",
-    "//third_party:fmt",
   ],
 )
 
@@ -143,9 +143,9 @@ cc_test(
   srcs = ["fixed_string_stream_test.cc"],
   deps = [
     ":util",
+    "//third_party:fmt",
     "//third_party/googletest:gtest",
     "//third_party/googletest:gtest_main",
-    "//third_party:fmt",
   ],
 )
 
@@ -154,7 +154,7 @@ cc_library(
   srcs = ["svg_artist.cc"],
   hdrs = ["svg_artist.h"],
   deps = [
-    "@system//:eigen3",
     "//third_party:fmt",
+    "@system//:eigen3",
   ],
 )

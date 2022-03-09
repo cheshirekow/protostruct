@@ -32,7 +32,8 @@ foreach(cflag ${_pydev_cflags_raw})
       list(APPEND _pydev_cflags "$<$<COMPILE_LANGUAGE:C>:${cflag}>")
     elseif(("${cflag}" STREQUAL "-fuse-linker-plugin"
         OR "${cflag}" STREQUAL "-ffat-lto-objects"
-        OR "${cflag}" STREQUAL "-flto")
+        OR "${cflag}" STREQUAL "-flto"
+        OR "${cflag}" MATCHES "-specs=.*")
         AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
       # These flags are not supported on clang. -flto is supported but it
       # must be used both at compile and link time and I'm sure the semantics
@@ -74,7 +75,7 @@ check_call(
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 string(REGEX REPLACE " +" ";" _pydev_libs "${_pydev_libs}")
 
-if(Python_VERSION VERSION_GREATER 3.8.999)
+if(Python_VERSION VERSION_GREATER 3.7.999)
   check_call(
     COMMAND ${Python_CONFIG} --libs --embed
     OUTPUT_VARIABLE _pydev_embed_raw

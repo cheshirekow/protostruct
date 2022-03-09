@@ -14,11 +14,13 @@ import tarfile
 
 logger = logging.getLogger(__name__)
 
+
 def iswellknown(filname):
   for pattern in WELL_KNOWN_SOs:
     if pattern.match(filename):
       return True
   return False
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -103,6 +105,3 @@ sh_binary(
   tarinfo = tarfile.TarInfo('tools.bzl')
   tarinfo.size = len(data)
   outfile.addfile(tarinfo, io.BytesIO(data))
-
-
-
