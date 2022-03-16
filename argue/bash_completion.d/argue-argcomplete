@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Copyright 2020, Josh Bialkowski <josh.bialkowski@gmail.com>
+# Design inspired by argcomplete/bash_completion.d/python-argcomplete
+# :see: https://github.com/kislyuk/argcomplete/blob/master/
+
+# Copy of __expand_tilde_by_ref from bash-completion
+__argue_expand_tilde_by_ref () {
+  if [ "${!1:0:1}" = "~" ]; then
+    if [ "${!1}" != "${!1//\/}" ]; then
+      # shellcheck disable=SC2016
+      eval "$1"="${!1/%\/*}"/'${!1#*/}';
+    else
+      eval "$1"="${!1}";
+    fi;
+  fi
+}
+
+# Run a command, redirecting output to /dev/null, unless debugging
+__argue_run_quiet() {
+  if [[ -z "$_ARGUE_DEBUG" ]]; then
+    "$@" 2>/dev/null
+  else
+    "$@"
+  fi
+}
+
+__argue_hacky_can_complete() {
+  readelf --symbols "$SCRIPT_NAME" | grep ARGUE_AUTOCOMPLETE_ME 1>/dev/null 2>&1
+}
+
+__argue_has_readelf() {
+  [ -x "$(command -v readelf)" ]
+}
+
+__argue_has_grep() {
+  command -v grep >/dev/null 2>&1
+}
+
+_argue_autocomplete_global() {
+  local executable=$1
+  __argue_expand_tilde_by_ref executable
+
+  local ARGUECOMPLETE=0
+  if type -P "$executable" >/dev/null 2>&1; then
+    # shellcheck disable=SC2155
+    local SCRIPT_NAME=$(type -P "$executable")
+    if [ -x "$(command -v argue-can-complete)" ]; then
+      if argue-can-complete "$SCRIPT_NAME"; then
+        local ARGUECOMPLETE=1
+      fi
+    elif __argue_has_readelf && __argue_has_grep; then
+      if __argue_hacky_can_complete; then
+        local ARGUECOMPLETE=1
+      fi
+    fi
+  fi
+
+  if [[ $ARGUECOMPLETE != 0 ]]; then
+    # shellcheck disable=SC2155
+    local IFS=$(echo -e '\v')
+    # NOTE(josh): Consider also passing the following to the program:
+    # COMP_LINE, COMP_POINT, COMP_TYPE, COMP_KEY, COMP_WORDBREAKS, COMP_WORDS
+    # shellcheck disable=SC2207
+    COMPREPLY=( $(_ARGUECOMPLETE="1"\
+          _ARGUECOMPLETE_IFS="$IFS" \
+          COMP_CWORD="$COMP_CWORD" \
+      __argue_run_quiet "$executable" "${COMP_WORDS[@]:1}") )
+    # shellcheck disable=SC2181
+    if [[ $? != 0 ]]; then
+      unset COMPREPLY
+    elif [[ "${COMPREPLY[-1]}" =~ [=/:]$ ]]; then
+      compopt -o nospace
+    fi
+  else
+    type -t _completion_loader | grep -q 'function' && _completion_loader "$@"
+  fi
+}
+complete -o default -o bashdefault -D -F _argue_autocomplete_global

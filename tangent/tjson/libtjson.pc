@@ -1,0 +1,13 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: libtjson
+Description: JSON parsing for C
+Version: @TJSON_VERSION@
+
+Requires.private:
+Libs: -L${libdir} -ltjson
+Libs.private:
+Cflags: -I${includedir}

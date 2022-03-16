@@ -1,0 +1,13 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: libargue
+Description: Argument Parser for C++
+Version: @ARGUE_VERSION@
+
+Requires.private:
+Libs: -L${libdir} -largue
+Libs.private:
+Cflags: -I${includedir}

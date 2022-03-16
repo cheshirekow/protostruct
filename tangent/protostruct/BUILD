@@ -25,7 +25,7 @@ cc_library(
   name = "cereal_utils",
   hdrs = ["cereal_utils.h"],
   deps = [
-    "//third_party/cereal",
+    "@cereal//:cereal",
   ],
 )
 
@@ -34,8 +34,8 @@ cc_test(
   srcs = ["pbwire-test.cc"],
   deps = [
     ":pbwire",
-    "//third_party/googletest:gtest",
-    "//third_party/googletest:gtest_main",
+    "@gtest",
+    "@gtest//:gtest_main",
   ],
 )
 
@@ -57,7 +57,7 @@ cc_library(
   deps = [
     ":descriptor_extensions_cc_proto",
     "//argue",
-    "@system//:glog",
+    "@glog",
     "@system//:libclang",
     "@system//:python-dev",
   ],
@@ -71,7 +71,7 @@ cc_binary(
   deps = [
     ":libprotostruct",
     "//argue",
-    "@system//:glog",
+    "@glog",
   ],
 )
 
@@ -83,7 +83,7 @@ cc_binary(
   deps = [
     ":libprotostruct",
     "//argue",
-    "@system//:glog",
+    "@glog",
   ],
 )
 
@@ -220,7 +220,7 @@ cc_library(
     ":pbwire",
     ":test_messages_cc_proto",
     "//tangent/tjson:cpp",
-    "//third_party/cereal",
+    "@cereal//:cereal",
   ],
 )
 
@@ -230,8 +230,8 @@ cc_test(
   deps = [
     ":cereal_utils",
     ":test-messages",
-    "//third_party/googletest:gtest",
-    "//third_party/googletest:gtest_main",
+    "@gtest",
+    "@gtest//:gtest_main",
   ],
 )
 

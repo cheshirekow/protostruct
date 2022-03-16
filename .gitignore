@@ -31,13 +31,10 @@ dist/
 bazel-*
 
 # vscode poop
-.vscode/ipch
+.vscode
 
 # node package manager
 node_modules
-
-# bazel sucks...
-WORKSPACE
 
 # node sucks
 vscode_extension/node_modules
